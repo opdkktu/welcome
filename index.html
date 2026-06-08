@@ -127,15 +127,14 @@ video{
 }
   #qrPanel{
     position:fixed;
-    right:30px;
-    bottom:30px;
-
+    left:50%;
+    bottom:60px;
+    transform:translateX(-50%);
     display:flex;
+    flex-direction:column;
     align-items:center;
     gap:15px;
-
     padding:15px 20px;
-
     background:rgba(255,255,255,.05);
     backdrop-filter:blur(12px);
 
@@ -145,10 +144,13 @@ video{
 }
 
 #qrCode{
-    width:90px;
-    height:90px;
-    border-radius:12px;
+    width:260px;
+    height:260px;
     background:white;
+    padding:12px;
+    border-radius:20px;
+    box-shadow:
+      0 0 30px rgba(255,255,255,.15);
 }
 
 .qrTitle{
