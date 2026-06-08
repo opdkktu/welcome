@@ -125,6 +125,44 @@ video{
 
   z-index:999;
 }
+  #qrPanel{
+    position:fixed;
+    right:30px;
+    bottom:30px;
+
+    display:flex;
+    align-items:center;
+    gap:15px;
+
+    padding:15px 20px;
+
+    background:rgba(255,255,255,.05);
+    backdrop-filter:blur(12px);
+
+    border:1px solid rgba(255,255,255,.08);
+
+    border-radius:20px;
+}
+
+#qrCode{
+    width:90px;
+    height:90px;
+    border-radius:12px;
+    background:white;
+}
+
+.qrTitle{
+    color:white;
+    font-size:14px;
+    font-weight:600;
+    letter-spacing:2px;
+}
+
+.qrSub{
+    color:#aaa;
+    margin-top:4px;
+    font-size:13px;
+}
 
 </style>
 </head>
@@ -134,6 +172,17 @@ video{
 <div id="idle">
   <div id="clock">00:00:00</div>
   <div id="date"></div>
+
+  <div id="qrPanel">
+    <img src="qr.png" id="qrCode">
+
+    <div class="qrText">
+        <div class="qrTitle">SCAN QR CODE</div>
+        <div class="qrSub">
+            Semak Status Giliran Anda
+        </div>
+    </div>
+</div>
 </div>
 
 <div id="welcomeScreen">
