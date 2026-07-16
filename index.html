@@ -219,6 +219,43 @@ video{
     from { opacity: .5; }
     to { opacity: 1; }
 }
+  /* ===========================
+   Bottom Safety Ticker
+=========================== */
+
+#ticker{
+    position:fixed;
+    left:0;
+    bottom:0;
+    width:100%;
+    height:48px;
+    background:rgba(0,0,0,.85);
+    border-top:2px solid #ffd400;
+    overflow:hidden;
+    z-index:9999;
+}
+
+#tickerText{
+    position:absolute;
+    white-space:nowrap;
+    color:#ffd400;
+    font-size:24px;
+    font-weight:700;
+    line-height:48px;
+    padding-left:100%;
+    text-shadow:
+        0 0 6px rgba(255,212,0,.7);
+    animation:tickerMove 28s linear infinite;
+}
+
+@keyframes tickerMove{
+    from{
+        transform:translateX(0);
+    }
+    to{
+        transform:translateX(-100%);
+    }
+}
 </style>
 </head>
 
@@ -235,7 +272,7 @@ video{
 </div>
 <!-- Animated Scan Here Arrow -->
 <div id="scanArrow">
-    <div class="scanLabel">Semak Status Giliran Anda. Add to homescreen untuk dapat notifikasi</div>
+    <div class="scanLabel">Semak Status Giliran Anda.</div>
     <svg width="200" height="750" viewBox="0 0 200 750">
         <defs>
             <!-- 
@@ -487,6 +524,10 @@ async function start(){
 start();
 
 </script>
-
+<div id="ticker">
+    <div id="tickerText">
+        ⚠️ Sekiranya alarm kebakaran diaktifkan, jangan cemas dan ikuti arahan petugas kami. Utamakan Orang Kurang Upaya (OKU), warga emas, ibu mengandung dan kanak-kanak.
+    </div>
+</div>
 </body>
 </html>
