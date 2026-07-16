@@ -170,8 +170,8 @@ video{
 
 #scanArrow{
     position:fixed;
-    top:150px;
-    right:80px;
+    top:270px;
+    right:120px;
     pointer-events:none;
     z-index:999;
     display:flex;
@@ -185,9 +185,9 @@ video{
     font-size:26px;
     font-weight:900;
     letter-spacing:3px;
-    margin-bottom:10px;
+    margin-top:10px;
     animation:
-        textBlink .8s infinite alternate;
+        textBlink .6s infinite alternate;
     text-shadow:
         0 0 10px red,
         0 0 20px red,
@@ -205,7 +205,7 @@ video{
     stroke-linecap:round;
     marker-end:url(#arrowHead);
     /* airport snake */
-    stroke-dasharray:2 18;
+    stroke-dasharray:12 12;
     animation:snakeMove .45s linear infinite;filter:
         drop-shadow(0 0 10px red)
         drop-shadow(0 0 18px red);
@@ -230,41 +230,34 @@ video{
 
   <div id="qrPanel">
     <img src="qr.png" id="qrCode">
-
-    <div class="qrText">
-        <div class="qrTitle">SCAN QR CODE</div>
-        <div class="qrSub">
-            Semak Status Giliran Anda
-        </div>
     </div>
 </div>
 </div>
-  
 <!-- Animated Scan Here Arrow -->
 <div id="scanArrow">
-    <div class="scanLabel">SCAN HERE</div>
-    <!-- Narrower SVG to guarantee it stays near the edge -->
-    <svg width="200" height="320" viewBox="0 0 200 320">
+    <div class="scanLabel">Semak Status Giliran Anda</div>
+    <svg width="200" height="750" viewBox="0 0 200 750">
         <defs>
-            <!-- 1. The exact roller coaster path the arrow will fly -->
+            <!-- 
+              Perfect 360 loop path:
+              1. Starts bottom-center, goes UP and curves RIGHT
+              2. Sweeps over the TOP and around to the LEFT
+              3. Crosses back UNDER the center and shoots UP-RIGHT 
+            -->
             <path id="flightPath"
-                  d="M 120 310 
-                     C 120 200, 20 230, 20 150 
-                     C 20 70, 140 70, 140 150 
-                     C 140 210, 120 180, 180 40" />
+                  d="M 100 700 
+                     C 100 230, 180 230, 180 150 
+                     C 180 50, 20 50, 20 150 
+                     C 20 250, 100 230, 170 10" />
 
-            <!-- 2. The gradient that creates the fading trail effect -->
             <radialGradient id="fadeGrad">
                 <stop offset="0%" stop-color="white" stop-opacity="1" />
                 <stop offset="35%" stop-color="white" stop-opacity="0.8" />
                 <stop offset="100%" stop-color="white" stop-opacity="0" />
             </radialGradient>
 
-            <!-- 3. The moving mask that reveals the trail -->
             <mask id="trailMask">
-                <!-- Black hides everything normally -->
                 <rect width="100%" height="100%" fill="black" />
-                <!-- This circle moves along the path, revealing the dash trail -->
                 <circle r="90" fill="url(#fadeGrad)">
                     <animateMotion dur="2.5s" repeatCount="indefinite">
                         <mpath href="#flightPath"/>
@@ -273,13 +266,12 @@ video{
             </mask>
         </defs>
 
-        <!-- 4. The dashed path (masked to fade in and out) -->
+        <!-- Dashed trail -->
         <use href="#flightPath" id="snakePath" />
 
-        <!-- 5. The Arrowhead physically flying along the path -->
+        <!-- Arrowhead -->
         <g filter="drop-shadow(0 0 10px red) drop-shadow(0 0 18px red)">
             <polygon points="-8,-6 8,0 -8,6" fill="#ff3030">
-                <!-- Automatically rotates and moves exactly with the trail mask -->
                 <animateMotion dur="2.5s" repeatCount="indefinite" rotate="auto">
                     <mpath href="#flightPath"/>
                 </animateMotion>
