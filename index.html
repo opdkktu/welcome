@@ -164,7 +164,109 @@ video{
     margin-top:4px;
     font-size:13px;
 }
+/* ===========================
+   Animated Scan Here Arrow
+=========================== */
 
+#scanArrow{
+    position:fixed;
+
+    /* Position relative to QR code */
+    top:120px;
+    right:300px;
+
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+
+    pointer-events:none;
+    z-index:999;
+}
+
+.arrowText{
+    color:#ff2d2d;
+    font-size:24px;
+    font-weight:900;
+    letter-spacing:2px;
+
+    margin-bottom:8px;
+
+    text-shadow:
+        0 0 10px red,
+        0 0 20px red,
+        0 0 40px red;
+
+    animation:
+        pulseText .8s infinite alternate;
+}
+
+#scanArrow svg{
+    width:220px;
+    height:180px;
+
+    overflow:visible;
+
+    animation:
+        floatArrow 1.2s ease-in-out infinite;
+}
+
+#scanArrow path{
+    fill:none;
+
+    stroke:#ff0000;
+    stroke-width:8;
+    stroke-linecap:round;
+
+    stroke-dasharray:12 12;
+
+    filter:
+        drop-shadow(0 0 8px red);
+
+    animation:
+        dashMove .8s linear infinite;
+}
+
+#scanArrow polygon{
+    fill:#ff0000;
+
+    filter:
+        drop-shadow(0 0 10px red);
+}
+
+/* Arrow wiggle */
+@keyframes floatArrow{
+    0%{
+        transform:translateX(0px);
+    }
+    50%{
+        transform:translateX(18px);
+    }
+    100%{
+        transform:translateX(0px);
+    }
+}
+
+/* Moving dashed line */
+@keyframes dashMove{
+    from{
+        stroke-dashoffset:0;
+    }
+    to{
+        stroke-dashoffset:-24;
+    }
+}
+
+/* Text glow */
+@keyframes pulseText{
+    from{
+        transform:scale(1);
+        opacity:0.8;
+    }
+    to{
+        transform:scale(1.12);
+        opacity:1;
+    }
+}
 </style>
 </head>
 
@@ -185,7 +287,20 @@ video{
     </div>
 </div>
 </div>
+  
+<!-- Animated Scan Here Arrow -->
+<div id="scanArrow">
+  <div class="arrowText">SCAN HERE</div>
 
+  <svg viewBox="0 0 220 180">
+    <path
+      d="M20 20
+         C120 20 120 120 180 120
+         S200 160 170 165"
+      pathLength="100" />
+    <polygon points="168,150 205,165 170,178"/>
+  </svg>
+</div>
 <div id="welcomeScreen">
   <img id="welcomeImage" src="welcome.png">
 </div>
