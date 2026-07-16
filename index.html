@@ -170,8 +170,8 @@ video{
 
 #scanArrow{
     position:fixed;
-    top:60px;
-    right:285px;
+    top:110px;
+    right:300px;
     pointer-events:none;
     z-index:999;
     display:flex;
@@ -201,12 +201,12 @@ video{
 #snakePath{
     fill:none;
     stroke:#ff2020;
-    stroke-width:9;
+    stroke-width:6;
     stroke-linecap:round;
     marker-end:url(#arrowHead);
     /* airport snake */
-    stroke-dasharray:1 22;
-    animation:snakeMove .55s linear infinite;filter:
+    stroke-dasharray:2 18;
+    animation:snakeMove .45s linear infinite;filter:
         drop-shadow(0 0 10px red)
         drop-shadow(0 0 18px red);
 }
@@ -264,30 +264,29 @@ video{
 <!-- Animated Scan Here Arrow -->
 <div id="scanArrow">
     <div class="scanLabel">SCAN HERE</div>
-    <svg width="320" height="220" viewBox="0 0 320 220">
+    <svg width="420" height="320" viewBox="0 0 420 320">
         <defs>
             <marker id="arrowHead"
-                markerWidth="16"
-                markerHeight="16"
-                refX="12"
-                refY="6"
+                markerWidth="8"
+                markerHeight="8"
+                refX="6"
+                refY="3"
                 orient="auto">
-
                 <polygon
-                    points="0 0,12 6,0 12"
-                    fill="#ff2020"/>
+                    points="0 0,6 3,0 6"
+                    fill="#ff3030"/>
             </marker>
         </defs>
         <path
             id="snakePath"
             d="
-            M30 30
-            C120 30 130 120 210 120
-            C250 120 255 165 285 185
+            M40 270
+            C60 220 120 170 190 160
+            S300 120 355 55
             "
-            marker-end="url(#arrowHead)" />
+            marker-end="url(#arrowHead)"
+        />
     </svg>
-
 </div>
 <div id="welcomeScreen">
   <img id="welcomeImage" src="welcome.png">
