@@ -25,7 +25,9 @@ html,body{
   sans-serif;
 }
 
-/* IDLE SCREEN */
+/* =========================
+   IDLE SCREEN
+========================= */
 
 #idle{
   position:fixed;
@@ -62,7 +64,9 @@ html,body{
   letter-spacing:4px;
 }
 
-/* WELCOME SCREEN */
+/* =========================
+   WELCOME SCREEN
+========================= */
 
 #welcomeScreen{
   position:fixed;
@@ -104,7 +108,9 @@ html,body{
   transform:scale(1);
 }
 
-/* hidden camera */
+/* =========================
+   CAMERA
+========================= */
 
 video{
   position:fixed;
@@ -114,232 +120,490 @@ video{
   pointer-events:none;
 }
 
+/* =========================
+   STATUS
+========================= */
+
 #status{
   position:fixed;
-  bottom:20px;
+  bottom:68px;
   right:20px;
 
   font-size:12px;
   color:#555;
 
-  z-index:999;
+  z-index:99999;
 }
-  #qrPanel{
-    position:fixed;
-    top:40px;
-    right:40px;
-    transform:translateX(-50%);
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:15px;
-    padding:0;
-    background:none;
-    backdrop-filter:blur(12px);
 
-    border:none;
+/* =========================
+   QR
+========================= */
 
-    border-radius:20px;
+#qrPanel{
+  position:fixed;
+  top:40px;
+  right:40px;
+
+  transform:translateX(-50%);
+
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+
+  gap:15px;
+  padding:0;
+
+  background:none;
+  backdrop-filter:blur(12px);
+
+  border:none;
+  border-radius:20px;
 }
 
 #qrCode{
-    width:220px;
-    height:220px;
-    background:white;
-    padding:12px;
-    border-radius:16px;
-    box-shadow:
-      0 10px 40px rgba(0,0,0,.4);
+  width:220px;
+  height:220px;
+
+  background:white;
+  padding:12px;
+  border-radius:16px;
+
+  box-shadow:
+    0 10px 40px rgba(0,0,0,.4);
 }
 
 .qrTitle{
-    color:white;
-    font-size:14px;
-    font-weight:600;
-    letter-spacing:2px;
+  color:white;
+  font-size:14px;
+  font-weight:600;
+  letter-spacing:2px;
 }
 
 .qrSub{
-    color:#aaa;
-    margin-top:4px;
-    font-size:13px;
+  color:#aaa;
+  margin-top:4px;
+  font-size:13px;
 }
-/* ===========================
-   Animated Scan Here Arrow
-=========================== */
+
+/* =========================
+   ANIMATED SCAN ARROW
+========================= */
 
 #scanArrow{
-    position:fixed;
-    top:270px;
-    right:120px;
-    pointer-events:none;
-    z-index:999;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
+  position:fixed;
+  top:270px;
+  right:120px;
+
+  pointer-events:none;
+  z-index:999;
+
+  display:flex;
+  flex-direction:column;
+  align-items:center;
 }
 
 .scanLabel{
 
-    color:#ff3030;
-    font-size:26px;
-    font-weight:900;
-    letter-spacing:3px;
-    margin-top:10px;
-    animation:
-        textBlink .6s infinite alternate;
-    text-shadow:
-        0 0 10px red,
-        0 0 20px red,
-        0 0 40px red;
+  color:#ff3030;
+
+  font-size:26px;
+  font-weight:900;
+  letter-spacing:3px;
+
+  margin-top:10px;
+
+  animation:
+    textBlink .6s infinite alternate;
+
+  text-shadow:
+    0 0 10px red,
+    0 0 20px red,
+    0 0 40px red;
 }
 
 #scanArrow svg{
-    overflow:visible;
+  overflow:visible;
 }
 
 #snakePath{
-    fill:none;
-    stroke:#ff2020;
-    stroke-width:6;
-    stroke-linecap:round;
-    marker-end:url(#arrowHead);
-    /* airport snake */
-    stroke-dasharray:12 12;
-    animation:snakeMove .45s linear infinite;filter:
-        drop-shadow(0 0 10px red)
-        drop-shadow(0 0 18px red);
-        mask: url(#trailMask);
+  fill:none;
+
+  stroke:#ff2020;
+  stroke-width:6;
+  stroke-linecap:round;
+
+  marker-end:url(#arrowHead);
+
+  stroke-dasharray:12 12;
+
+  animation:
+    snakeMove .45s linear infinite;
+
+  filter:
+    drop-shadow(0 0 10px red)
+    drop-shadow(0 0 18px red);
+
+  mask:url(#trailMask);
 }
+
 #arrowHead{
-    animation:pulseArrow .8s infinite;
+  animation:pulseArrow .8s infinite;
 }
 
 @keyframes textBlink {
-    from { opacity: .5; }
-    to { opacity: 1; }
+  from { opacity:.5; }
+  to   { opacity:1; }
 }
-  /* ===========================
-   Bottom Safety Ticker
-=========================== */
+
+/* =========================
+   BOTTOM SAFETY TICKER
+========================= */
 
 #ticker{
-    position:fixed;
-    left:0;
-    bottom:0;
-    width:100%;
-    height:48px;
-    background:rgba(0,0,0,.85);
-    border-top:2px solid #ffd400;
-    overflow:hidden;
-    z-index:9999;
+  position:fixed;
+
+  left:0;
+  bottom:0;
+
+  width:100%;
+  height:48px;
+
+  background:rgba(0,0,0,.85);
+
+  border-top:2px solid #ffd400;
+
+  overflow:hidden;
+
+  z-index:9999;
 }
 
 #tickerText{
-    position:absolute;
-    white-space:nowrap;
-    color:#ffd400;
-    font-size:34px;
-    font-weight:700;
-    line-height:48px;
-    padding-left:100%;
-    text-shadow:
-        0 0 6px rgba(255,212,0,.7);
-    animation:tickerMove 28s linear infinite;
+  position:absolute;
+
+  white-space:nowrap;
+
+  color:#ffd400;
+
+  font-size:34px;
+  font-weight:700;
+
+  line-height:48px;
+
+  padding-left:100%;
+
+  text-shadow:
+    0 0 6px rgba(255,212,0,.7);
+
+  animation:
+    tickerMove 28s linear infinite;
 }
 
 @keyframes tickerMove{
-    from{
-        transform:translateX(0);
-    }
-    to{
-        transform:translateX(-100%);
-    }
+  from{
+    transform:translateX(0);
+  }
+
+  to{
+    transform:translateX(-100%);
+  }
 }
+
 </style>
 </head>
 
 <body>
 
+<!-- =========================
+     IDLE SCREEN
+========================= -->
+
 <div id="idle">
+
   <div id="clock">00:00:00</div>
+
   <div id="date"></div>
 
   <div id="qrPanel">
-    <img src="qr.png" id="qrCode">
-    </div>
+
+    <img
+      src="qr.png"
+      id="qrCode"
+    >
+
+  </div>
+
 </div>
-</div>
-<!-- Animated Scan Here Arrow -->
+
+
+<!-- =========================
+     ANIMATED SCAN HERE ARROW
+========================= -->
+
 <div id="scanArrow">
-    <div class="scanLabel">Semak Status Giliran Anda.</div>
-    <svg width="200" height="750" viewBox="0 0 200 750">
-        <defs>
-            <!-- 
-              Perfect 360 loop path:
-              1. Starts bottom-center, goes UP and curves RIGHT
-              2. Sweeps over the TOP and around to the LEFT
-              3. Crosses back UNDER the center and shoots UP-RIGHT 
-            -->
-            <path id="flightPath"
-                  d="M 100 700 
-                     C 100 230, 180 230, 180 150 
-                     C 180 50, 20 50, 20 150 
-                     C 20 250, 100 230, 170 10" />
 
-            <radialGradient id="fadeGrad">
-                <stop offset="0%" stop-color="white" stop-opacity="1" />
-                <stop offset="35%" stop-color="white" stop-opacity="0.8" />
-                <stop offset="100%" stop-color="white" stop-opacity="0" />
-            </radialGradient>
+  <div class="scanLabel">
+    Semak Status Giliran Anda.
+  </div>
 
-            <mask id="trailMask">
-                <rect width="100%" height="100%" fill="black" />
-                <circle r="90" fill="url(#fadeGrad)">
-                    <animateMotion dur="2.5s" repeatCount="indefinite">
-                        <mpath href="#flightPath"/>
-                    </animateMotion>
-                </circle>
-            </mask>
-        </defs>
+  <svg
+    width="200"
+    height="750"
+    viewBox="0 0 200 750"
+  >
 
-        <!-- Dashed trail -->
-        <use href="#flightPath" id="snakePath" />
+    <defs>
 
-        <!-- Arrowhead -->
-        <g filter="drop-shadow(0 0 10px red) drop-shadow(0 0 18px red)">
-            <polygon points="-8,-6 8,0 -8,6" fill="#ff3030">
-                <animateMotion dur="2.5s" repeatCount="indefinite" rotate="auto">
-                    <mpath href="#flightPath"/>
-                </animateMotion>
-            </polygon>
-        </g>
-    </svg>
+      <path
+        id="flightPath"
+        d="
+          M 100 700
+          C 100 230, 180 230, 180 150
+          C 180 50, 20 50, 20 150
+          C 20 250, 100 230, 170 10
+        "
+      />
+
+      <radialGradient id="fadeGrad">
+
+        <stop
+          offset="0%"
+          stop-color="white"
+          stop-opacity="1"
+        />
+
+        <stop
+          offset="35%"
+          stop-color="white"
+          stop-opacity="0.8"
+        />
+
+        <stop
+          offset="100%"
+          stop-color="white"
+          stop-opacity="0"
+        />
+
+      </radialGradient>
+
+      <mask id="trailMask">
+
+        <rect
+          width="100%"
+          height="100%"
+          fill="black"
+        />
+
+        <circle
+          r="90"
+          fill="url(#fadeGrad)"
+        >
+
+          <animateMotion
+            dur="2.5s"
+            repeatCount="indefinite"
+          >
+
+            <mpath href="#flightPath"/>
+
+          </animateMotion>
+
+        </circle>
+
+      </mask>
+
+    </defs>
+
+    <use
+      href="#flightPath"
+      id="snakePath"
+    />
+
+    <g
+      filter="
+        drop-shadow(0 0 10px red)
+        drop-shadow(0 0 18px red)
+      "
+    >
+
+      <polygon
+        points="-8,-6 8,0 -8,6"
+        fill="#ff3030"
+      >
+
+        <animateMotion
+          dur="2.5s"
+          repeatCount="indefinite"
+          rotate="auto"
+        >
+
+          <mpath href="#flightPath"/>
+
+        </animateMotion>
+
+      </polygon>
+
+    </g>
+
+  </svg>
+
 </div>
+
+
+<!-- =========================
+     WELCOME
+========================= -->
+
 <div id="welcomeScreen">
-  <img id="welcomeImage" src="welcome.png">
+
+  <img
+    id="welcomeImage"
+    src="welcome.png"
+  >
+
 </div>
 
-<video id="webcam" autoplay playsinline muted></video>
 
-<audio id="welcomeAudio" preload="auto">
-  <source src="welcome.mp3" type="audio/mpeg">
+<!-- =========================
+     CAMERA
+========================= -->
+
+<video
+  id="webcam"
+  autoplay
+  playsinline
+  muted
+></video>
+
+
+<!-- =========================
+     WELCOME AUDIO
+========================= -->
+
+<audio
+  id="welcomeAudio"
+  preload="auto"
+>
+
+  <source
+    src="welcome.mp3"
+    type="audio/mpeg"
+  >
+
 </audio>
 
-<div id="status">Loading AI...</div>
+
+<!-- =========================
+     STATUS
+========================= -->
+
+<div id="status">
+  Loading AI...
+</div>
+
+
+<!-- =========================
+     SAFETY TICKER
+========================= -->
+
+<div id="ticker">
+
+  <div id="tickerText">
+
+    ⚠️ Sekiranya alarm kebakaran diaktifkan,
+    jangan cemas dan ikuti arahan petugas kami.
+    Utamakan Orang Kurang Upaya (OKU),
+    warga emas, ibu mengandung dan kanak-kanak.
+
+  </div>
+
+</div>
+
 
 <script type="module">
 
+/* ============================================================
+   MEDIAPIPE
+============================================================ */
+
 import {
- FilesetResolver,
- FaceDetector
+  FilesetResolver,
+  FaceDetector
 }
 from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
 
-const video = document.getElementById("webcam");
-const audio = document.getElementById("welcomeAudio");
-const welcomeScreen = document.getElementById("welcomeScreen");
-const statusBox = document.getElementById("status");
+
+/* ============================================================
+   ELEMENTS
+============================================================ */
+
+const video =
+  document.getElementById("webcam");
+
+const audio =
+  document.getElementById("welcomeAudio");
+
+const welcomeScreen =
+  document.getElementById("welcomeScreen");
+
+const statusBox =
+  document.getElementById("status");
+
+
+/* ============================================================
+   GOOGLE APPS SCRIPT UPLOAD URL
+============================================================ */
+
+/*
+   IMPORTANT:
+
+   Replace this with your deployed Google Apps Script
+   Web App URL.
+
+   Example:
+
+   const UPLOAD_URL =
+     "https://script.google.com/macros/s/XXXXXXXXXXXX/exec";
+*/
+
+const UPLOAD_URL =
+  "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL";
+
+
+/* ============================================================
+   CAMERA SETTINGS
+============================================================ */
+
+const CAMERA_WIDTH = 640;
+const CAMERA_HEIGHT = 480;
+
+
+/* ============================================================
+   RECORDING SETTINGS
+============================================================ */
+
+const RECORD_START_HOUR = 7;
+const RECORD_START_MINUTE = 30;
+
+const RECORD_END_HOUR = 8;
+const RECORD_END_MINUTE = 0;
+
+const RECORDING_INTERVAL_MS =
+  5 * 60 * 1000;
+
+
+/*
+   Video bitrate.
+
+   1.5 Mbps gives reasonable 640x480 quality
+   while keeping files relatively small.
+*/
+
+const VIDEO_BITRATE = 1500000;
+
+
+/* ============================================================
+   AI VARIABLES
+============================================================ */
 
 let detector;
 
@@ -347,187 +611,1043 @@ let triggered = false;
 let lastSeen = 0;
 let showingWelcome = false;
 
+
+/* ============================================================
+   RECORDING VARIABLES
+============================================================ */
+
+let mediaRecorder = null;
+
+let recordingChunks = [];
+
+let recordingStartTime = null;
+
+let recordingTimer = null;
+
+let recordingActive = false;
+
+let uploadInProgress = false;
+
+
+/* ============================================================
+   CAMERA
+============================================================ */
+
 async function initCamera(){
 
- const stream = await navigator.mediaDevices.getUserMedia({
-   video:{
-     width:640,
-     height:480,
-     facingMode:"user"
-   },
-   audio:false
- });
+  const stream =
+    await navigator.mediaDevices.getUserMedia({
 
- video.srcObject = stream;
+      video:{
+        width:{
+          ideal:CAMERA_WIDTH
+        },
 
- return new Promise(resolve=>{
-   video.onloadedmetadata=()=>resolve();
- });
+        height:{
+          ideal:CAMERA_HEIGHT
+        },
+
+        facingMode:"user"
+      },
+
+      audio:false
+
+    });
+
+  video.srcObject = stream;
+
+  return new Promise(resolve=>{
+
+    video.onloadedmetadata = ()=>{
+
+      resolve();
+
+    };
+
+  });
 
 }
+
+
+/* ============================================================
+   AI INITIALIZATION
+============================================================ */
 
 async function initAI(){
 
- const vision =
- await FilesetResolver.forVisionTasks(
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
- );
+  const vision =
+    await FilesetResolver.forVisionTasks(
 
- detector =
- await FaceDetector.createFromOptions(
-  vision,
-  {
-   baseOptions:{
-    modelAssetPath:
-    "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
-   },
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
 
-   runningMode:"VIDEO",
+    );
 
-   minDetectionConfidence:0.6
-  }
- );
+
+  detector =
+    await FaceDetector.createFromOptions(
+
+      vision,
+
+      {
+
+        baseOptions:{
+
+          modelAssetPath:
+          "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
+
+        },
+
+        runningMode:"VIDEO",
+
+        minDetectionConfidence:0.6
+
+      }
+
+    );
 
 }
+
+
+/* ============================================================
+   CLOCK
+============================================================ */
 
 function updateClock(){
 
- const now = new Date();
+  const now =
+    new Date();
 
- const time =
- now.toLocaleTimeString("en-GB");
 
- const date =
- now.toLocaleDateString("en-GB",{
-  weekday:"long",
-  day:"2-digit",
-  month:"long",
-  year:"numeric"
- });
+  const time =
+    now.toLocaleTimeString("en-GB");
 
- document.getElementById("clock").textContent=time;
- document.getElementById("date").textContent=date;
+
+  const date =
+    now.toLocaleDateString(
+      "en-GB",
+      {
+        weekday:"long",
+        day:"2-digit",
+        month:"long",
+        year:"numeric"
+      }
+    );
+
+
+  document.getElementById("clock")
+    .textContent = time;
+
+
+  document.getElementById("date")
+    .textContent = date;
 
 }
 
-setInterval(updateClock,1000);
+
+setInterval(
+  updateClock,
+  1000
+);
+
 updateClock();
+
+
+/* ============================================================
+   CHECK WHETHER CURRENT TIME IS INSIDE RECORDING WINDOW
+============================================================ */
+
+function isRecordingTime(){
+
+  const now =
+    new Date();
+
+
+  const minutes =
+    now.getHours() * 60 +
+    now.getMinutes();
+
+
+  const start =
+    RECORD_START_HOUR * 60 +
+    RECORD_START_MINUTE;
+
+
+  const end =
+    RECORD_END_HOUR * 60 +
+    RECORD_END_MINUTE;
+
+
+  return (
+    minutes >= start &&
+    minutes < end
+  );
+
+}
+
+
+/* ============================================================
+   FORMAT DATE
+============================================================ */
+
+function pad(number){
+
+  return String(number)
+    .padStart(2,"0");
+
+}
+
+
+function formatDate(date){
+
+  return (
+
+    date.getFullYear() +
+    "-" +
+    pad(date.getMonth()+1) +
+    "-" +
+    pad(date.getDate())
+
+  );
+
+}
+
+
+function formatTime(date){
+
+  return (
+
+    pad(date.getHours()) +
+    ":" +
+    pad(date.getMinutes()) +
+    ":" +
+    pad(date.getSeconds())
+
+  );
+
+}
+
+
+/* ============================================================
+   CREATE FILENAME
+============================================================ */
+
+function createRecordingFilename(
+  startDate,
+  endDate
+){
+
+  const date =
+    formatDate(startDate);
+
+  const start =
+    pad(startDate.getHours()) +
+    pad(startDate.getMinutes());
+
+
+  const end =
+    pad(endDate.getHours()) +
+    pad(endDate.getMinutes());
+
+
+  return (
+    "PRIMA_" +
+    date +
+    "_" +
+    start +
+    "-" +
+    end +
+    ".webm"
+  );
+
+}
+
+
+/* ============================================================
+   GET BEST MEDIARECORDER FORMAT
+============================================================ */
+
+function getSupportedMimeType(){
+
+  const types = [
+
+    "video/webm;codecs=vp9",
+
+    "video/webm;codecs=vp8",
+
+    "video/webm"
+
+  ];
+
+
+  for(
+    const type of types
+  ){
+
+    if(
+      MediaRecorder.isTypeSupported(type)
+    ){
+
+      return type;
+
+    }
+
+  }
+
+
+  return "";
+
+}
+
+
+/* ============================================================
+   START RECORDING
+============================================================ */
+
+function startRecording(){
+
+  if(
+    recordingActive
+  ){
+
+    return;
+
+  }
+
+
+  if(
+    !video.srcObject
+  ){
+
+    console.error(
+      "Camera stream unavailable."
+    );
+
+    return;
+
+  }
+
+
+  if(
+    !isRecordingTime()
+  ){
+
+    return;
+
+  }
+
+
+  const mimeType =
+    getSupportedMimeType();
+
+
+  recordingChunks = [];
+
+  recordingStartTime =
+    new Date();
+
+
+  try{
+
+    mediaRecorder =
+      mimeType
+
+      ?
+
+      new MediaRecorder(
+        video.srcObject,
+        {
+          mimeType:mimeType,
+          videoBitsPerSecond:
+            VIDEO_BITRATE
+        }
+      )
+
+      :
+
+      new MediaRecorder(
+        video.srcObject
+      );
+
+
+  }catch(error){
+
+    console.error(
+      "MediaRecorder failed:",
+      error
+    );
+
+    statusBox.textContent =
+      "Recording unavailable";
+
+    return;
+
+  }
+
+
+  mediaRecorder.ondataavailable =
+    event => {
+
+      if(
+        event.data &&
+        event.data.size > 0
+      ){
+
+        recordingChunks.push(
+          event.data
+        );
+
+      }
+
+    };
+
+
+  mediaRecorder.onstop =
+    async () => {
+
+      await finishRecording();
+
+    };
+
+
+  mediaRecorder.onerror =
+    event => {
+
+      console.error(
+        "MediaRecorder error:",
+        event
+      );
+
+      recordingActive = false;
+
+    };
+
+
+  mediaRecorder.start();
+
+
+  recordingActive = true;
+
+
+  statusBox.textContent =
+    "🔴 Recording 07:30–08:00";
+
+
+  console.log(
+    "Recording started:",
+    formatTime(recordingStartTime)
+  );
+
+
+  /*
+     Stop this recording after 5 minutes.
+  */
+
+  recordingTimer =
+    setTimeout(
+
+      stopRecording,
+
+      RECORDING_INTERVAL_MS
+
+    );
+
+}
+
+
+/* ============================================================
+   STOP RECORDING
+============================================================ */
+
+function stopRecording(){
+
+  if(
+    recordingTimer
+  ){
+
+    clearTimeout(
+      recordingTimer
+    );
+
+    recordingTimer = null;
+
+  }
+
+
+  if(
+    !mediaRecorder
+  ){
+
+    return;
+
+  }
+
+
+  if(
+    mediaRecorder.state === "recording"
+  ){
+
+    mediaRecorder.stop();
+
+  }
+
+}
+
+
+/* ============================================================
+   FINISH RECORDING
+============================================================ */
+
+async function finishRecording(){
+
+  const endDate =
+    new Date();
+
+
+  const startDate =
+    recordingStartTime ||
+    new Date(
+      endDate.getTime() -
+      RECORDING_INTERVAL_MS
+    );
+
+
+  const filename =
+    createRecordingFilename(
+      startDate,
+      endDate
+    );
+
+
+  recordingActive = false;
+
+
+  const mimeType =
+    mediaRecorder &&
+    mediaRecorder.mimeType
+
+    ?
+
+    mediaRecorder.mimeType
+
+    :
+
+    "video/webm";
+
+
+  const blob =
+    new Blob(
+      recordingChunks,
+      {
+        type:mimeType
+      }
+    );
+
+
+  recordingChunks = [];
+
+
+  console.log(
+    "Recording completed:",
+    filename
+  );
+
+
+  console.log(
+    "Video size:",
+    (
+      blob.size /
+      1024 /
+      1024
+    ).toFixed(2) +
+    " MB"
+  );
+
+
+  /*
+     Upload immediately.
+
+     This means we don't wait until 08:00.
+  */
+
+  await uploadRecording(
+    blob,
+    filename
+  );
+
+
+  /*
+     Check whether we should start another
+     5-minute recording.
+  */
+
+  if(
+    isRecordingTime()
+  ){
+
+    /*
+       Small delay between files.
+    */
+
+    setTimeout(
+      startRecording,
+      1000
+    );
+
+  }else{
+
+    statusBox.textContent =
+      "Recording finished";
+
+    console.log(
+      "Daily recording completed."
+    );
+
+  }
+
+}
+
+
+/* ============================================================
+   UPLOAD VIDEO TO GOOGLE APPS SCRIPT
+============================================================ */
+
+async function uploadRecording(
+  blob,
+  filename
+){
+
+  if(
+    !UPLOAD_URL ||
+    UPLOAD_URL ===
+    "https://script.google.com/macros/s/AKfycbwk5KkSK1kZCIMqG8ITAiNXKYioQGO8R-ODWOpZUsKjKdjLWylfC_XXhqAD-VI12iA7/exec"
+  ){
+
+    console.warn(
+      "Google Apps Script upload URL has not been configured."
+    );
+
+    statusBox.textContent =
+      "Video saved locally — upload URL not configured";
+
+    return;
+
+  }
+
+
+  uploadInProgress = true;
+
+
+  statusBox.textContent =
+    "Uploading " + filename;
+
+
+  try{
+
+    /*
+       Convert video to Base64.
+
+       Apps Script receives this and creates
+       the Drive file.
+    */
+
+    const base64 =
+      await blobToBase64(blob);
+
+
+    const payload = {
+
+      filename:filename,
+
+      mimeType:
+        blob.type ||
+        "video/webm",
+
+      data:base64
+
+    };
+
+
+    const response =
+      await fetch(
+        UPLOAD_URL,
+        {
+
+          method:"POST",
+
+          headers:{
+            "Content-Type":
+              "text/plain;charset=utf-8"
+          },
+
+          body:
+            JSON.stringify(payload)
+
+        }
+      );
+
+
+    const resultText =
+      await response.text();
+
+
+    console.log(
+      "Upload response:",
+      resultText
+    );
+
+
+    statusBox.textContent =
+      "Uploaded: " + filename;
+
+
+  }catch(error){
+
+    console.error(
+      "Upload failed:",
+      error
+    );
+
+
+    statusBox.textContent =
+      "Upload failed: " + filename;
+
+  }
+
+
+  uploadInProgress = false;
+
+}
+
+
+/* ============================================================
+   BLOB → BASE64
+============================================================ */
+
+function blobToBase64(blob){
+
+  return new Promise(
+    (resolve,reject)=>{
+
+      const reader =
+        new FileReader();
+
+
+      reader.onloadend =
+        () => {
+
+          const result =
+            reader.result;
+
+
+          /*
+             Remove:
+             data:video/webm;base64,
+          */
+
+          const base64 =
+            result.split(",")[1];
+
+
+          resolve(base64);
+
+        };
+
+
+      reader.onerror =
+        reject;
+
+
+      reader.readAsDataURL(blob);
+
+    }
+  );
+
+}
+
+
+/* ============================================================
+   RECORDING SCHEDULER
+============================================================ */
+
+function recordingScheduler(){
+
+  /*
+     If it is currently 07:30–08:00
+     and we are not recording,
+     start recording.
+  */
+
+  if(
+    isRecordingTime() &&
+    !recordingActive &&
+    !uploadInProgress
+  ){
+
+    startRecording();
+
+  }
+
+
+  /*
+     After 08:00 make sure recording has stopped.
+  */
+
+  if(
+    !isRecordingTime() &&
+    recordingActive
+  ){
+
+    stopRecording();
+
+  }
+
+}
+
+
+/*
+   Check every second.
+
+   This also means if the page was opened at
+   07:32, it will start recording immediately.
+*/
+
+setInterval(
+  recordingScheduler,
+  1000
+);
+
+
+/* ============================================================
+   FACE DETECTION
+============================================================ */
 
 async function detectLoop(){
 
- if(detector){
+  if(detector){
 
-  const result =
-  detector.detectForVideo(
-   video,
-   performance.now()
-  );
+    const result =
+      detector.detectForVideo(
+        video,
+        performance.now()
+      );
 
-  let closePerson = false;
 
-  if(result.detections.length){
+    let closePerson = false;
 
-   const box =
-   result.detections[0].boundingBox;
 
-   const area =
-   (box.width*box.height)/
-   (video.videoWidth*video.videoHeight);
+    if(
+      result.detections.length
+    ){
 
-   /*
-    close enough threshold
-   */
+      const box =
+        result
+          .detections[0]
+          .boundingBox;
 
-   if(area > 0.08){
-      closePerson=true;
-      lastSeen=Date.now();
-   }
 
-  }
+      const area =
+        (
+          box.width *
+          box.height
+        ) /
+        (
+          video.videoWidth *
+          video.videoHeight
+        );
 
-  if(closePerson &&
-     !triggered &&
-     !showingWelcome){
+
+      /*
+         Visitor is close enough.
+      */
+
+      if(
+        area > 0.08
+      ){
+
+        closePerson = true;
+
+        lastSeen =
+          Date.now();
+
+      }
+
+    }
+
+
+    /*
+       IMPORTANT:
+
+       This only controls the welcome screen.
+
+       It does NOT control video recording.
+    */
+
+    if(
+      closePerson &&
+      !triggered &&
+      !showingWelcome
+    ){
 
       playWelcome();
-  }
 
-  if(triggered){
-
-    if(Date.now()-lastSeen>2000){
-
-      triggered=false;
-      statusBox.textContent=
-      "Ready for next visitor";
     }
+
+
+    if(
+      triggered
+    ){
+
+      if(
+        Date.now() -
+        lastSeen >
+        2000
+      ){
+
+        triggered = false;
+
+        statusBox.textContent =
+          recordingActive
+
+          ?
+
+          "🔴 Recording"
+
+          :
+
+          "Ready for next visitor";
+
+      }
+
+    }
+
   }
 
- }
 
- requestAnimationFrame(detectLoop);
+  requestAnimationFrame(
+    detectLoop
+  );
 
 }
+
+
+/* ============================================================
+   WELCOME SCREEN
+============================================================ */
 
 async function playWelcome(){
 
- showingWelcome=true;
- triggered=true;
+  showingWelcome = true;
 
- statusBox.textContent=
- "Visitor detected";
+  triggered = true;
 
- welcomeScreen.classList.add("show");
 
- try{
-   audio.currentTime=0;
-   await audio.play();
- }catch(err){
-   console.log(err);
- }
+  statusBox.textContent =
+    recordingActive
 
- setTimeout(()=>{
+    ?
 
-   welcomeScreen.classList.remove("show");
+    "Visitor detected • 🔴 Recording"
 
-   showingWelcome=false;
+    :
 
- },5000);
+    "Visitor detected";
+
+
+  welcomeScreen.classList.add(
+    "show"
+  );
+
+
+  try{
+
+    audio.currentTime = 0;
+
+    await audio.play();
+
+  }catch(err){
+
+    console.log(
+      "Audio playback blocked:",
+      err
+    );
+
+  }
+
+
+  setTimeout(()=>{
+
+    welcomeScreen.classList.remove(
+      "show"
+    );
+
+
+    showingWelcome = false;
+
+  },5000);
 
 }
+
+
+/* ============================================================
+   START EVERYTHING
+============================================================ */
 
 async function start(){
 
- try{
+  try{
 
-   await initCamera();
+    statusBox.textContent =
+      "Starting camera...";
 
-   statusBox.textContent=
-   "Loading AI model...";
 
-   await initAI();
+    await initCamera();
 
-   statusBox.textContent=
-   "Ready";
 
-   detectLoop();
+    statusBox.textContent =
+      "Loading AI model...";
 
- }catch(err){
 
-   console.error(err);
+    await initAI();
 
-   statusBox.textContent=
-   "Camera permission required";
- }
+
+    statusBox.textContent =
+      "Ready";
+
+
+    /*
+       Start face detection.
+    */
+
+    detectLoop();
+
+
+    /*
+       Check recording immediately.
+
+       Important if the page opens after 07:30.
+    */
+
+    recordingScheduler();
+
+
+  }catch(err){
+
+    console.error(
+      err
+    );
+
+
+    statusBox.textContent =
+      "Camera permission required";
+
+  }
 
 }
+
 
 start();
 
 </script>
-<div id="ticker">
-    <div id="tickerText">
-        ⚠️ Sekiranya alarm kebakaran diaktifkan, jangan cemas dan ikuti arahan petugas kami. Utamakan Orang Kurang Upaya (OKU), warga emas, ibu mengandung dan kanak-kanak.
-    </div>
-</div>
+
 </body>
 </html>
