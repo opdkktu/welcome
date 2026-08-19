@@ -581,14 +581,14 @@ const CAMERA_HEIGHT = 480;
    RECORDING SETTINGS
 ============================================================ */
 
-const RECORD_START_HOUR = 7;
-const RECORD_START_MINUTE = 30;
+const RECORD_START_HOUR = 10;
+const RECORD_START_MINUTE = 25;
 
-const RECORD_END_HOUR = 8;
-const RECORD_END_MINUTE = 0;
+const RECORD_END_HOUR = 10;
+const RECORD_END_MINUTE = 40;
 
 const RECORDING_INTERVAL_MS =
-  5 * 60 * 1000;
+  2 * 60 * 1000;
 
 
 /*
@@ -1029,7 +1029,7 @@ function startRecording(){
 
 
   statusBox.textContent =
-    "🔴 Recording 07:30–08:00";
+    "🔴 Recording :30–08:00";
 
 
   console.log(
@@ -1372,7 +1372,7 @@ function blobToBase64(blob){
 function recordingScheduler(){
 
   /*
-     If it is currently 07:30–08:00
+     If it is currently :30–08:00
      and we are not recording,
      start recording.
   */
@@ -1408,7 +1408,7 @@ function recordingScheduler(){
    Check every second.
 
    This also means if the page was opened at
-   07:32, it will start recording immediately.
+   :32, it will start recording immediately.
 */
 
 setInterval(
