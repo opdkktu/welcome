@@ -584,7 +584,7 @@ const CAMERA_HEIGHT = 480;
 const RECORD_START_HOUR = 07;
 const RECORD_START_MINUTE = 25;
 
-const RECORD_END_HOUR = 08;
+const RECORD_END_HOUR = 10;
 const RECORD_END_MINUTE = 0;
 
 const RECORDING_INTERVAL_MS =
@@ -598,7 +598,7 @@ const RECORDING_INTERVAL_MS =
    while keeping files relatively small.
 */
 
-const VIDEO_BITRATE = 1500000;
+const VIDEO_BITRATE = 500000;
 
 
 /* ============================================================
@@ -716,12 +716,8 @@ function updateClock(){
 
   const now =
     new Date();
-
-
   const time =
     now.toLocaleTimeString("en-GB");
-
-
   const date =
     now.toLocaleDateString(
       "en-GB",
@@ -732,63 +728,40 @@ function updateClock(){
         year:"numeric"
       }
     );
-
-
   document.getElementById("clock")
     .textContent = time;
-
-
   document.getElementById("date")
     .textContent = date;
-
 }
-
-
 setInterval(
   updateClock,
   1000
 );
-
 updateClock();
-
-
 /* ============================================================
    CHECK WHETHER CURRENT TIME IS INSIDE RECORDING WINDOW
 ============================================================ */
 
 function isRecordingTime(){
-
   const now =
     new Date();
-
-
   const minutes =
     now.getHours() * 60 +
     now.getMinutes();
-
-
   const start =
     RECORD_START_HOUR * 60 +
     RECORD_START_MINUTE;
-
-
   const end =
     RECORD_END_HOUR * 60 +
     RECORD_END_MINUTE;
-
-
   return (
     minutes >= start &&
     minutes < end
   );
-
 }
-
-
 /* ============================================================
    FORMAT DATE
 ============================================================ */
-
 function pad(number){
 
   return String(number)
@@ -813,9 +786,7 @@ function formatDate(date){
 
 
 function formatTime(date){
-
   return (
-
     pad(date.getHours()) +
     ":" +
     pad(date.getMinutes()) +
@@ -1216,40 +1187,23 @@ async function uploadRecording(
   filename
 ){
 
-  if(
-    !UPLOAD_URL ||
-    UPLOAD_URL ===
-    "https://script.google.com/macros/s/AKfycbwk5KkSK1kZCIMqG8ITAiNXKYioQGO8R-ODWOpZUsKjKdjLWylfC_XXhqAD-VI12iA7/exec"
-  ){
-
+if (!UPLOAD_URL) {
     console.warn(
       "Google Apps Script upload URL has not been configured."
     );
-
     statusBox.textContent =
       "Video saved locally — upload URL not configured";
-
     return;
-
   }
-
-
   uploadInProgress = true;
-
-
   statusBox.textContent =
     "Uploading " + filename;
-
-
   try{
-
     /*
        Convert video to Base64.
-
        Apps Script receives this and creates
        the Drive file.
     */
-
     const base64 =
       await blobToBase64(blob);
 
