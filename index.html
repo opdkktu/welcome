@@ -485,7 +485,7 @@ video{
 <div id="announcementScreen">
   <img
     id="announcementImage"
-    src="nasihat1.jng"
+    src="nasihat1.jpg"
   >
 </div>
 
@@ -610,7 +610,13 @@ const UPLOAD_URL =
 
 const CAMERA_WIDTH = 640;
 const CAMERA_HEIGHT = 480;
-
+/* ============================================================
+   AI VARIABLES
+============================================================ */
+let detector;
+let triggered = false;
+let lastSeen = 0;
+let showingWelcome = false;
 
 /* ============================================================
    RECORDING SETTINGS
@@ -639,7 +645,7 @@ const VIDEO_BITRATE = 500000;
 ============================================================ */
 
 const ANNOUNCEMENT_TIMES = [
-  "08:00","09:30",
+  "08:00","09:30","10:39",
   "12:00","14:00",
   "15:00","16:00"
 ];
@@ -651,7 +657,7 @@ const NASIHAT_AUDIO =
   "nasihat1.mp3";
 
 const NASIHAT_IMAGE =
-  "nasihat1.jng";
+  "nasihat1.jpg";
 
 let announcementActive = false;
 let lastAnnouncementKey = "";
@@ -812,13 +818,7 @@ async function playGeneralAnnouncement(){
     );
   });
 }
-/* ============================================================
-   AI VARIABLES
-============================================================ */
-let detector;
-let triggered = false;
-let lastSeen = 0;
-let showingWelcome = false;
+
 /* ============================================================
    RECORDING VARIABLES
 ============================================================ */
@@ -903,11 +903,14 @@ function announcementScheduler(){
     ){
       lastAnnouncementKey =
         announcementKey;
-      playGeneralAnnouncement();
+      ();
     }
   }
 }
-
+setInterval(
+  announcementScheduler,
+  1000
+);
 /* ============================================================
    AI INITIALIZATION
 ============================================================ */
@@ -1589,19 +1592,12 @@ async function detectLoop(){
 /* ============================================================
    WELCOME SCREEN
 ============================================================ */
-
 async function playWelcome(){
-
   showingWelcome = true;
-
   triggered = true;
-
-
   statusBox.textContent =
     recordingActive
-
     ?
-
     "Visitor detected • 🔴 Recording"
 
     :
