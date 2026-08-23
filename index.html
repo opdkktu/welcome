@@ -107,7 +107,44 @@ html,body{
 #welcomeScreen.show #welcomeImage{
   transform:scale(1);
 }
+/* =========================
+   GENERAL ANNOUNCEMENT
+========================= */
 
+#announcementScreen{
+  position:fixed;
+  inset:0;
+
+  display:flex;
+  justify-content:center;
+  align-items:center;
+
+  background:black;
+
+  opacity:0;
+  visibility:hidden;
+
+  transition:
+    opacity .5s ease,
+    visibility .5s ease;
+
+  z-index:10000;
+}
+
+#announcementScreen.show{
+  opacity:1;
+  visibility:visible;
+}
+
+#announcementImage{
+  max-width:90%;
+  max-height:90%;
+
+  object-fit:contain;
+
+  filter:
+    drop-shadow(0 0 35px rgba(255,255,255,.15));
+}
 /* =========================
    CAMERA
 ========================= */
@@ -201,7 +238,9 @@ video{
   flex-direction:column;
   align-items:center;
 }
-
+#scanArrow.announcementHidden{
+  display:none !important;
+}
 .scanLabel{
 
   color:#ff3030;
@@ -382,49 +421,36 @@ video{
           stop-color="white"
           stop-opacity="0"
         />
-
       </radialGradient>
-
       <mask id="trailMask">
-
         <rect
           width="100%"
           height="100%"
           fill="black"
         />
-
         <circle
           r="90"
           fill="url(#fadeGrad)"
         >
-
           <animateMotion
             dur="2.5s"
             repeatCount="indefinite"
           >
-
             <mpath href="#flightPath"/>
-
           </animateMotion>
-
         </circle>
-
       </mask>
-
     </defs>
-
     <use
       href="#flightPath"
       id="snakePath"
     />
-
     <g
       filter="
         drop-shadow(0 0 10px red)
         drop-shadow(0 0 18px red)
       "
     >
-
       <polygon
         points="-8,-6 8,0 -8,6"
         fill="#ff3030"
@@ -435,34 +461,43 @@ video{
           repeatCount="indefinite"
           rotate="auto"
         >
-
           <mpath href="#flightPath"/>
-
         </animateMotion>
-
       </polygon>
-
     </g>
-
   </svg>
-
 </div>
-
-
 <!-- =========================
      WELCOME
 ========================= -->
 
 <div id="welcomeScreen">
-
   <img
     id="welcomeImage"
     src="welcome.png"
   >
-
 </div>
 
+<!-- =========================
+     GENERAL ANNOUNCEMENT
+========================= -->
 
+<div id="announcementScreen">
+  <img
+    id="announcementImage"
+    src="nasihat1.png"
+  >
+</div>
+
+<audio
+  id="announcementBell"
+  preload="auto"
+></audio>
+
+<audio
+  id="announcementAudio"
+  preload="auto"
+></audio>
 <!-- =========================
      CAMERA
 ========================= -->
@@ -599,19 +634,191 @@ const RECORDING_INTERVAL_MS =
 */
 
 const VIDEO_BITRATE = 500000;
+/* ============================================================
+   GENERAL ANNOUNCEMENT
+============================================================ */
 
+const ANNOUNCEMENT_TIMES = [
+  "08:00","09:30",
+  "12:00","14:00",
+  "15:00","16:00"
+];
 
+const BELL_URL =
+  "https://opdkktu.github.io/trial1/bell.mp3";
+
+const NASIHAT_AUDIO =
+  "nasihat1.mp3";
+
+const NASIHAT_IMAGE =
+  "nasihat1.png";
+
+let announcementActive = false;
+let lastAnnouncementKey = "";
+  const announcementScreen =
+  document.getElementById("announcementScreen");
+
+const announcementImage =
+  document.getElementById("announcementImage");
+
+const announcementBell =
+  document.getElementById("announcementBell");
+
+const announcementAudio =
+  document.getElementById("announcementAudio");
+
+const scanArrow =
+  document.getElementById("scanArrow");
+  /* ============================================================
+   GENERAL ANNOUNCEMENT
+============================================================ */
+
+async function playGeneralAnnouncement(){
+
+  if(announcementActive){
+    return;
+  }
+
+  announcementActive = true;
+
+  console.log(
+    "GENERAL ANNOUNCEMENT STARTED"
+  );
+
+  /*
+   * Stop welcome audio immediately.
+   */
+  audio.pause();
+  audio.currentTime = 0;
+
+  /*
+   * Hide welcome screen.
+   */
+  welcomeScreen.classList.remove("show");
+
+  showingWelcome = false;
+  triggered = false;
+
+  /*
+   * Hide QR instruction + arrow.
+   */
+  scanArrow.classList.add(
+    "announcementHidden"
+  );
+
+  /*
+   * Show announcement image.
+   */
+  announcementImage.src =
+    NASIHAT_IMAGE;
+
+  announcementScreen.classList.add(
+    "show"
+  );
+
+  statusBox.textContent =
+    "📢 Pengumuman";
+
+  /*
+   * Load bell.
+   */
+  announcementBell.src =
+    BELL_URL;
+
+  announcementBell.currentTime = 0;
+
+  try{
+
+    /*
+     * Play bell first.
+     */
+    await announcementBell.play();
+
+    /*
+     * Wait until bell finishes.
+     */
+    await waitForAudioEnd(
+      announcementBell
+    );
+
+  }catch(error){
+
+    console.error(
+      "Bell playback failed:",
+      error
+    );
+
+  }
+
+  /*
+   * Play nasihat.
+   */
+  announcementAudio.src =
+    NASIHAT_AUDIO;
+
+  announcementAudio.currentTime = 0;
+
+  try{
+
+    await announcementAudio.play();
+
+    await waitForAudioEnd(
+      announcementAudio
+    );
+
+  }catch(error){
+
+    console.error(
+      "Nasihat playback failed:",
+      error
+    );
+
+  }
+
+  /*
+   * Finish announcement.
+   */
+  announcementScreen.classList.remove(
+    "show"
+  );
+
+  scanArrow.classList.remove(
+    "announcementHidden"
+  );
+
+  statusBox.textContent =
+    recordingActive
+      ? "🔴 Recording"
+      : "Ready for next visitor";
+
+  announcementActive = false;
+
+  console.log(
+    "GENERAL ANNOUNCEMENT FINISHED"
+  );
+}
+  function waitForAudioEnd(audioElement){
+  return new Promise(resolve => {
+    const finished = () => {
+      audioElement.removeEventListener(
+        "ended",
+        finished
+      );
+      resolve();
+    };
+    audioElement.addEventListener(
+      "ended",
+      finished
+    );
+  });
+}
 /* ============================================================
    AI VARIABLES
 ============================================================ */
-
 let detector;
-
 let triggered = false;
 let lastSeen = 0;
 let showingWelcome = false;
-
-
 /* ============================================================
    RECORDING VARIABLES
 ============================================================ */
@@ -632,88 +839,102 @@ let uploadInProgress = false;
 /* ============================================================
    CAMERA
 ============================================================ */
-
 async function initCamera(){
-
   const stream =
     await navigator.mediaDevices.getUserMedia({
-
       video:{
         width:{
           ideal:CAMERA_WIDTH
         },
-
         height:{
           ideal:CAMERA_HEIGHT
         },
-
         facingMode:"user"
-      },
-
-      audio:false
-
+      },audio:false
     });
-
   video.srcObject = stream;
-
   return new Promise(resolve=>{
-
     video.onloadedmetadata = ()=>{
-
       resolve();
-
     };
-
   });
-
 }
+/* ============================================================
+   ANNOUNCEMENT SCHEDULER
+============================================================ */
+function announcementScheduler(){
+  if(announcementActive){
+    return;
+  }
+  const now =
+    new Date();
+  const hours =
+    String(
+      now.getHours()
+    ).padStart(2,"0");
 
+  const minutes =
+    String(
+      now.getMinutes()
+    ).padStart(2,"0");
+
+  const currentTime =
+    hours + ":" + minutes;
+
+  if(
+    ANNOUNCEMENT_TIMES.includes(
+      currentTime
+    )
+  ){
+
+    const announcementKey =
+      formatDate(now) +
+      "_" +
+      currentTime;
+
+    /*
+     * Prevent the same announcement
+     * from triggering repeatedly during
+     * the same minute.
+     */
+    if(
+      announcementKey !==
+      lastAnnouncementKey
+    ){
+      lastAnnouncementKey =
+        announcementKey;
+      playGeneralAnnouncement();
+    }
+  }
+}
 
 /* ============================================================
    AI INITIALIZATION
 ============================================================ */
 
 async function initAI(){
-
   const vision =
     await FilesetResolver.forVisionTasks(
-
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-
     );
-
 
   detector =
     await FaceDetector.createFromOptions(
-
       vision,
-
-      {
-
-        baseOptions:{
-
+      {baseOptions:{
           modelAssetPath:
           "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
-
         },
-
         runningMode:"VIDEO",
-
         minDetectionConfidence:0.6
-
       }
-
     );
-
 }
-
-
 /* ============================================================
    CLOCK
 ============================================================ */
 
 function updateClock(){
-
   const now =
     new Date();
   const time =
@@ -763,27 +984,18 @@ function isRecordingTime(){
    FORMAT DATE
 ============================================================ */
 function pad(number){
-
   return String(number)
     .padStart(2,"0");
-
 }
-
-
 function formatDate(date){
-
   return (
-
     date.getFullYear() +
     "-" +
     pad(date.getMonth()+1) +
     "-" +
     pad(date.getDate())
-
   );
-
 }
-
 
 function formatTime(date){
   return (
@@ -792,12 +1004,8 @@ function formatTime(date){
     pad(date.getMinutes()) +
     ":" +
     pad(date.getSeconds())
-
   );
-
 }
-
-
 /* ============================================================
    CREATE FILENAME
 ============================================================ */
@@ -806,20 +1014,14 @@ function createRecordingFilename(
   startDate,
   endDate
 ){
-
   const date =
     formatDate(startDate);
-
   const start =
     pad(startDate.getHours()) +
     pad(startDate.getMinutes());
-
-
   const end =
     pad(endDate.getHours()) +
     pad(endDate.getMinutes());
-
-
   return (
     "PRIMA_" +
     date +
@@ -829,101 +1031,56 @@ function createRecordingFilename(
     end +
     ".webm"
   );
-
 }
-
-
 /* ============================================================
    GET BEST MEDIARECORDER FORMAT
 ============================================================ */
-
 function getSupportedMimeType(){
-
   const types = [
-
     "video/webm;codecs=vp9",
-
     "video/webm;codecs=vp8",
-
     "video/webm"
-
   ];
-
-
   for(
     const type of types
   ){
-
     if(
       MediaRecorder.isTypeSupported(type)
     ){
-
       return type;
-
     }
-
-  }
-
-
-  return "";
-
+  } return "";
 }
-
-
 /* ============================================================
    START RECORDING
 ============================================================ */
-
 function startRecording(){
-
   if(
-    recordingActive
-  ){
-
+    recordingActive){
     return;
-
   }
-
-
   if(
     !video.srcObject
   ){
-
     console.error(
       "Camera stream unavailable."
     );
-
     return;
-
   }
-
-
   if(
     !isRecordingTime()
   ){
-
     return;
-
   }
-
-
   const mimeType =
     getSupportedMimeType();
-
-
   recordingChunks = [];
-
   recordingStartTime =
     new Date();
-
-
   try{
-
     mediaRecorder =
       mimeType
-
       ?
-
       new MediaRecorder(
         video.srcObject,
         {
@@ -932,16 +1089,11 @@ function startRecording(){
             VIDEO_BITRATE
         }
       )
-
       :
-
       new MediaRecorder(
         video.srcObject
       );
-
-
   }catch(error){
-
     console.error(
       "MediaRecorder failed:",
       error
@@ -949,125 +1101,74 @@ function startRecording(){
 
     statusBox.textContent =
       "Recording unavailable";
-
     return;
-
   }
-
-
   mediaRecorder.ondataavailable =
     event => {
-
       if(
         event.data &&
         event.data.size > 0
       ){
-
         recordingChunks.push(
           event.data
         );
-
       }
-
     };
-
-
   mediaRecorder.onstop =
     async () => {
-
       await finishRecording();
-
     };
-
-
   mediaRecorder.onerror =
     event => {
-
       console.error(
         "MediaRecorder error:",
         event
       );
-
       recordingActive = false;
-
     };
-
-
   mediaRecorder.start();
-
-
   recordingActive = true;
-
-
   statusBox.textContent =
     "🔴 Recording :30–08:00";
-
-
   console.log(
     "Recording started:",
     formatTime(recordingStartTime)
   );
-
-
   /*
      Stop this recording after 5 minutes.
   */
-
   recordingTimer =
     setTimeout(
-
       stopRecording,
-
       RECORDING_INTERVAL_MS
-
     );
-
 }
-
-
 /* ============================================================
    STOP RECORDING
 ============================================================ */
-
 function stopRecording(){
-
   if(
     recordingTimer
   ){
-
     clearTimeout(
       recordingTimer
     );
-
     recordingTimer = null;
-
   }
-
-
   if(
     !mediaRecorder
   ){
-
     return;
-
   }
-
-
   if(
     mediaRecorder.state === "recording"
   ){
-
     mediaRecorder.stop();
-
   }
-
 }
-
-
 /* ============================================================
    FINISH RECORDING
 ============================================================ */
-
 async function finishRecording(){
 
   const endDate =
@@ -1439,7 +1540,8 @@ async function detectLoop(){
     if(
       closePerson &&
       !triggered &&
-      !showingWelcome
+      !showingWelcome &&
+      !announcementActive
     ){
 
       playWelcome();
