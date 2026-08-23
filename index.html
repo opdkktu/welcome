@@ -645,7 +645,7 @@ const VIDEO_BITRATE = 500000;
 ============================================================ */
 
 const ANNOUNCEMENT_TIMES = [
-  "08:00","09:30","10:39",
+  "08:00","09:30","10:45",
   "12:00","14:00",
   "15:00","16:00"
 ];
@@ -866,8 +866,10 @@ function announcementScheduler(){
   if(announcementActive){
     return;
   }
+
   const now =
     new Date();
+
   const hours =
     String(
       now.getHours()
@@ -901,12 +903,16 @@ function announcementScheduler(){
       announcementKey !==
       lastAnnouncementKey
     ){
+
       lastAnnouncementKey =
         announcementKey;
-      ();
+
+      playGeneralAnnouncement();
+
     }
   }
 }
+
 setInterval(
   announcementScheduler,
   1000
