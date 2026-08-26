@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width,initial-scale=1.0">
+
+<title>PRIMA CCTV Publisher TEST</title>
+
+<style>
+
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  background:#000;
+  color:white;
+  font-family:Arial,sans-serif;
+}
+
+body{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+
+video{
+  width:640px;
+  max-width:90vw;
+  background:#111;
+}
+
+#status{
+  margin-top:20px;
+  font-size:18px;
+}
+
+button{
+  margin-top:20px;
+  padding:12px 25px;
+  font-size:16px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<video
+  id="localVideo"
+  autoplay
+  playsinline
+  muted>
+</video>
+
+<div id="status">
+  Starting...
+</div>
+
+<button id="stopButton">
+  Stop CCTV
+</button>
+
+
+<script type="module">
+
+import {
+  Room,
+  RoomEvent,
+  LocalVideoTrack,
+  TokenSource
+}
+from
+"https://cdn.jsdelivr.net/npm/livekit-client@2.22.0/+esm";
+
+
+/* ============================================================
+   SETTINGS
+============================================================ */
+
+const TOKEN_SERVER_ID =
+  "welcomecameracctv-osezp5";
+
+
+const ROOM_NAME =
+  "PRIMA-CCTV-TEST";
+
+
+const CAMERA_WIDTH =
+  640;
+
+
+const CAMERA_HEIGHT =
+  480;
+
+
+const statusBox =
+  document.getElementById("status");
+
+
+const localVideo =
+  document.getElementById("localVideo");
+
+
+const stopButton =
+  document.getElementById("stopButton");
+
+
+let room = null;
+
+let localTrack = null;
+
+
+/* ============================================================
+   START CAMERA + LIVEKIT
+============================================================ */
+
+async function startCCTV(){
+
+  try{
+
+    statusBox.textContent =
+      "Requesting camera...";
+
+
+    /*
+       Get camera permission.
+    */
+
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+
+        video:{
+          width:{
+            ideal:CAMERA_WIDTH
+          },
+
+          height:{
+            ideal:CAMERA_HEIGHT
+          },
+
+          facingMode:"user"
+
+        },
+
+        audio:false
+
+      });
+
+
+    /*
+       Show local preview.
+    */
+
+    localVideo.srcObject =
+      stream;
+
+
+    statusBox.textContent =
+      "Getting LiveKit token...";
+
+
+    /*
+       Development token server.
+
+       TESTING ONLY.
+    */
+
+    const tokenSource =
+      TokenSource.developmentTokenServer(
+        TOKEN_SERVER_ID
+      );
+
+
+    const connectionDetails =
+      await tokenSource.fetch({
+        roomName:ROOM_NAME
+      });
+
+
+    /*
+       Create LiveKit room.
+    */
+
+    room =
+      new Room({
+        adaptiveStream:true,
+        dynacast:true
+      });
+
+
+    /*
+       Connect.
+    */
+
+    await room.connect(
+      connectionDetails.serverUrl,
+      connectionDetails.participantToken
+    );
+
+
+    console.log(
+      "Connected to:",
+      room.name
+    );
+
+
+    /*
+       Get video track from
+       camera stream.
+    */
+
+    const videoTrack =
+      stream.getVideoTracks()[0];
+
+
+    localTrack =
+      new LocalVideoTrack(
+        videoTrack
+      );
+
+
+    /*
+       Publish camera.
+    */
+
+    await room.localParticipant.publishTrack(
+      localTrack,
+      {
+        name:"clinic-camera",
+        source:"camera"
+      }
+    );
+
+
+    statusBox.textContent =
+      "🟢 CCTV CAMERA LIVE";
+
+
+    console.log(
+      "Camera published to LiveKit."
+    );
+
+
+  }catch(error){
+
+    console.error(
+      "CCTV publisher error:",
+      error
+    );
+
+
+    statusBox.textContent =
+      "❌ ERROR — check console";
+
+  }
+
+}
+
+
+/* ============================================================
+   STOP
+============================================================ */
+
+stopButton.addEventListener(
+  "click",
+  async () => {
+
+    if(localTrack){
+
+      localTrack.stop();
+
+      localTrack =
+        null;
+
+    }
+
+
+    if(localVideo.srcObject){
+
+      localVideo.srcObject
+        .getTracks()
+        .forEach(
+          track => track.stop()
+        );
+
+      localVideo.srcObject =
+        null;
+
+    }
+
+
+    if(room){
+
+      await room.disconnect();
+
+      room =
+        null;
+
+    }
+
+
+    statusBox.textContent =
+      "CCTV stopped.";
+
+  }
+);
+
+
+/* ============================================================
+   START
+============================================================ */
+
+startCCTV();
+
+</script>
+
+</body>
+</html>
