@@ -702,6 +702,18 @@ let recordingCanvas = null;
 let recordingCanvasContext = null;
 let recordingCanvasStream = null;
 let timestampAnimationFrame = null;
+  /* ============================================================
+     CCTV WEBRTC
+============================================================ */
+
+const CCTV_WS_URL =
+  "wss://YOUR-CCTV-WORKER.workers.dev/ws";
+
+let cctvSocket = null;
+
+let cctvPeer = null;
+
+let cctvActive = false;
 /* ============================================================
    RECORDING SETTINGS
 ============================================================ *
@@ -1191,17 +1203,12 @@ async function enterDayMode(){
     */
 
     if(!shouldBeDayMode()){
-
       await enterNightMode();
-
       return;
-
     }
-
-
+startCCTV();
     statusBox.textContent =
       "Loading AI model...";
-
 
     /*
        Start MediaPipe.
@@ -1246,14 +1253,10 @@ async function enterDayMode(){
        This allows the system to start recording
        immediately if Chrome was opened after 07:20.
     */
-
     recordingScheduler();
-
-
     console.log(
       "PRIMA DAY MODE READY"
     );
-
 
   }catch(error){
 
@@ -1262,32 +1265,20 @@ async function enterDayMode(){
       error
     );
 
-
     statusBox.textContent =
       "Camera permission required";
-
-
     /*
        If camera/AI failed, don't leave
        the system half-active.
     */
-
+stopCCTV();
     stopAI();
-
     stopCamera();
-
     currentDayMode = false;
-
-
   }finally{
-
     systemStarting = false;
-
   }
-
 }
-
-
 /* ============================================================
    DAY / NIGHT CONTROLLER
 ============================================================ */
@@ -1429,7 +1420,524 @@ async function initCamera(){
 
 }
 
+/* ============================================================
+   CCTV WEBRTC PUBLISHER
+============================================================ */
 
+function startCCTV(){
+
+  /*
+     CCTV only works during DAY MODE.
+  */
+
+  if(!currentDayMode){
+
+    console.log(
+      "CCTV not started: NIGHT MODE"
+    );
+
+    return;
+
+  }
+
+
+  /*
+     Camera must already be running.
+  */
+
+  if(!video.srcObject){
+
+    console.warn(
+      "CCTV cannot start: camera unavailable."
+    );
+
+    return;
+
+  }
+
+
+  /*
+     Don't create duplicate connections.
+  */
+
+  if(cctvSocket){
+
+    console.log(
+      "CCTV signaling already connected."
+    );
+
+    return;
+
+  }
+
+
+  console.log(
+    "Starting PRIMA CCTV..."
+  );
+
+
+  cctvSocket =
+    new WebSocket(
+      CCTV_WS_URL
+    );
+
+
+  /* ========================================================
+     CONNECTED
+  ======================================================== */
+
+  cctvSocket.onopen = () => {
+
+    console.log(
+      "CCTV signaling connected."
+    );
+
+
+    /*
+       Tell the server:
+
+       This Chromebook is the CAMERA
+       publisher.
+    */
+
+    cctvSocket.send(
+
+      JSON.stringify({
+
+        type:
+          "publisher"
+
+      })
+
+    );
+
+  };
+
+
+  /* ========================================================
+     MESSAGE
+  ======================================================== */
+
+  cctvSocket.onmessage =
+    async event => {
+
+      try{
+
+        const message =
+          JSON.parse(
+            event.data
+          );
+
+
+        /*
+           A viewer has opened cctv.html.
+        */
+
+        if(
+          message.type ===
+          "viewer-ready"
+        ){
+
+          console.log(
+            "CCTV viewer connected."
+          );
+
+
+          await createCCTVOffer();
+
+        }
+
+
+        /*
+           Viewer answered our offer.
+        */
+
+        else if(
+          message.type ===
+          "answer"
+        ){
+
+          if(!cctvPeer){
+
+            return;
+
+          }
+
+
+          await cctvPeer.setRemoteDescription(
+
+            new RTCSessionDescription(
+              message.answer
+            )
+
+          );
+
+
+          console.log(
+            "CCTV remote description set."
+          );
+
+        }
+
+
+        /*
+           ICE candidate from viewer.
+        */
+
+        else if(
+          message.type ===
+          "candidate"
+        ){
+
+          if(
+            cctvPeer &&
+            message.candidate
+          ){
+
+            try{
+
+              await cctvPeer.addIceCandidate(
+
+                new RTCIceCandidate(
+                  message.candidate
+                )
+
+              );
+
+            }catch(error){
+
+              console.error(
+                "CCTV ICE candidate error:",
+                error
+              );
+
+            }
+
+          }
+
+        }
+
+      }catch(error){
+
+        console.error(
+          "CCTV message error:",
+          error
+        );
+
+      }
+
+    };
+
+
+  /* ========================================================
+     ERROR
+  ======================================================== */
+
+  cctvSocket.onerror =
+    error => {
+
+      console.error(
+        "CCTV signaling error:",
+        error
+      );
+
+    };
+
+
+  /* ========================================================
+     CLOSED
+  ======================================================== */
+
+  cctvSocket.onclose =
+    () => {
+
+      console.log(
+        "CCTV signaling disconnected."
+      );
+
+
+      cctvSocket =
+        null;
+
+
+      cctvActive =
+        false;
+
+
+      if(cctvPeer){
+
+        try{
+
+          cctvPeer.close();
+
+        }catch(error){
+
+          console.error(
+            error
+          );
+
+        }
+
+        cctvPeer =
+          null;
+
+      }
+
+    };
+
+}
+
+
+/* ============================================================
+   CREATE CCTV WEBRTC OFFER
+============================================================ */
+
+async function createCCTVOffer(){
+
+  /*
+     Don't create CCTV if
+     Night Mode has started.
+  */
+
+  if(!currentDayMode){
+
+    return;
+
+  }
+
+
+  if(!video.srcObject){
+
+    return;
+
+  }
+
+
+  /*
+     Close previous peer connection.
+  */
+
+  if(cctvPeer){
+
+    try{
+
+      cctvPeer.close();
+
+    }catch(error){
+
+      console.error(
+        error
+      );
+
+    }
+
+  }
+
+
+  /*
+     Create WebRTC connection.
+  */
+
+  cctvPeer =
+    new RTCPeerConnection({
+
+      iceServers:[
+        {
+          urls:
+            "stun:stun.l.google.com:19302"
+        }
+      ]
+
+    });
+
+
+  /*
+     IMPORTANT:
+
+     Reuse the EXISTING PRIMA camera.
+
+     We are NOT calling getUserMedia()
+     again.
+  */
+
+  video.srcObject
+    .getTracks()
+    .forEach(track => {
+
+      cctvPeer.addTrack(
+
+        track,
+
+        video.srcObject
+
+      );
+
+    });
+
+
+  /*
+     Send ICE candidates
+     to Cloudflare signaling server.
+  */
+
+  cctvPeer.onicecandidate =
+    event => {
+
+      if(
+        event.candidate &&
+        cctvSocket &&
+        cctvSocket.readyState ===
+          WebSocket.OPEN
+      ){
+
+        cctvSocket.send(
+
+          JSON.stringify({
+
+            type:
+              "candidate",
+
+            candidate:
+              event.candidate
+
+          })
+
+        );
+
+      }
+
+    };
+
+
+  /*
+     Connection state.
+  */
+
+  cctvPeer.onconnectionstatechange =
+    () => {
+
+      console.log(
+        "CCTV connection:",
+        cctvPeer.connectionState
+      );
+
+
+      if(
+        cctvPeer.connectionState ===
+        "connected"
+      ){
+
+        cctvActive =
+          true;
+
+      }
+
+
+      if(
+        cctvPeer.connectionState ===
+          "failed" ||
+        cctvPeer.connectionState ===
+          "disconnected" ||
+        cctvPeer.connectionState ===
+          "closed"
+      ){
+
+        cctvActive =
+          false;
+
+      }
+
+    };
+
+
+  /*
+     Create WebRTC offer.
+  */
+
+  const offer =
+    await cctvPeer.createOffer();
+
+
+  await cctvPeer.setLocalDescription(
+    offer
+  );
+
+
+  /*
+     Send offer to viewer.
+  */
+
+  if(
+    cctvSocket &&
+    cctvSocket.readyState ===
+      WebSocket.OPEN
+  ){
+
+    cctvSocket.send(
+
+      JSON.stringify({
+
+        type:
+          "offer",
+
+        offer:
+          cctvPeer.localDescription
+
+      })
+
+    );
+
+  }
+
+}
+
+
+/* ============================================================
+   STOP CCTV
+============================================================ */
+
+function stopCCTV(){
+
+  console.log(
+    "Stopping PRIMA CCTV..."
+  );
+
+  /*
+     Close WebRTC.
+  */
+
+  if(cctvPeer){
+    try{
+      cctvPeer.close();
+    }catch(error){
+      console.error(
+        error
+      );
+    }
+
+    cctvPeer =
+      null;
+  }
+
+
+  /*
+     Close signaling.
+  */
+
+  if(cctvSocket){
+    try{
+      cctvSocket.close();
+    }catch(error){
+      console.error(
+        error
+      );
+    }
+    cctvSocket =
+      null;
+  }
+  cctvActive =
+    false;
+}
 /* ============================================================
    ANNOUNCEMENT
 ============================================================ */
