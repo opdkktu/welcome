@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1.0"
+>
+
+<title>PRIMA CCTV</title>
+
+
+<style>
+
+/* ============================================================
+   GLOBAL
+============================================================ */
+
+*{
+
+  margin:0;
+
+  padding:0;
+
+  box-sizing:border-box;
+
+}
+
+
+html,
+body{
+
+  width:100%;
+
+  height:100%;
+
+  overflow:hidden;
+
+  background:#000;
+
+  font-family:
+    Arial,
+    sans-serif;
+
+}
+
+
+/* ============================================================
+   VIDEO
+============================================================ */
+
+#remoteVideo{
+
+  position:fixed;
+
+  inset:0;
+
+  width:100%;
+
+  height:100%;
+
+  object-fit:contain;
+
+  background:#000;
+
+}
+
+
+/* ============================================================
+   STATUS
+============================================================ */
+
+#status{
+
+  position:fixed;
+
+  top:20px;
+
+  left:20px;
+
+  z-index:100;
+
+  padding:
+    10px
+    16px;
+
+  border-radius:8px;
+
+  color:#fff;
+
+  background:
+    rgba(0,0,0,.65);
+
+  font-size:14px;
+
+  font-weight:600;
+
+  backdrop-filter:
+    blur(8px);
+
+}
+
+
+/* ============================================================
+   LIVE INDICATOR
+============================================================ */
+
+#liveIndicator{
+
+  position:fixed;
+
+  top:20px;
+
+  right:20px;
+
+  z-index:100;
+
+  display:none;
+
+  align-items:center;
+
+  gap:8px;
+
+  padding:
+    8px
+    14px;
+
+  border-radius:20px;
+
+  color:#fff;
+
+  background:
+    rgba(0,0,0,.65);
+
+  font-size:13px;
+
+  font-weight:bold;
+
+}
+
+
+#liveDot{
+
+  width:10px;
+
+  height:10px;
+
+  border-radius:50%;
+
+  background:#ff2020;
+
+  box-shadow:
+    0 0 10px
+    rgba(255,0,0,.8);
+
+}
+
+
+/* ============================================================
+   OFFLINE MESSAGE
+============================================================ */
+
+#offline{
+
+  position:fixed;
+
+  inset:0;
+
+  z-index:50;
+
+  display:flex;
+
+  justify-content:center;
+
+  align-items:center;
+
+  flex-direction:column;
+
+  gap:12px;
+
+  color:#aaa;
+
+  background:#000;
+
+  text-align:center;
+
+}
+
+
+#offlineTitle{
+
+  color:#fff;
+
+  font-size:24px;
+
+  font-weight:600;
+
+}
+
+
+#offlineText{
+
+  color:#777;
+
+  font-size:14px;
+
+}
+
+
+/* ============================================================
+   HIDDEN WHEN LIVE
+============================================================ */
+
+#offline.hidden{
+
+  display:none;
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<!-- =========================================================
+     REMOTE CAMERA
+========================================================= -->
+
+<video
+  id="remoteVideo"
+  autoplay
+  playsinline
+  muted
+></video>
+
+
+<!-- =========================================================
+     STATUS
+========================================================= -->
+
+<div id="status">
+
+  Connecting...
+
+</div>
+
+
+<!-- =========================================================
+     LIVE INDICATOR
+========================================================= -->
+
+<div id="liveIndicator">
+
+  <span id="liveDot"></span>
+
+  LIVE CCTV
+
+</div>
+
+
+<!-- =========================================================
+     OFFLINE
+========================================================= -->
+
+<div id="offline">
+
+  <div id="offlineTitle">
+
+    PRIMA CCTV
+
+  </div>
+
+  <div id="offlineText">
+
+    Connecting to camera...
+
+  </div>
+
+</div>
+
+
+<script>
+
+/* ============================================================
+   SETTINGS
+============================================================ */
+
+
+/*
+   IMPORTANT:
+
+   Replace this with the SAME Cloudflare Worker URL
+   used inside index.html.
+
+   Example:
+
+   wss://prima-cctv.xxxxx.workers.dev/ws
+*/
+
+const CCTV_WS_URL =
+  "wss://YOUR-CCTV-WORKER.workers.dev/ws";
+
+
+/* ============================================================
+   ELEMENTS
+============================================================ */
+
+const video =
+  document.getElementById(
+    "remoteVideo"
+  );
+
+
+const statusBox =
+  document.getElementById(
+    "status"
+  );
+
+
+const liveIndicator =
+  document.getElementById(
+    "liveIndicator"
+  );
+
+
+const offline =
+  document.getElementById(
+    "offline"
+  );
+
+
+const offlineText =
+  document.getElementById(
+    "offlineText"
+  );
+
+
+/* ============================================================
+   WEBRTC VARIABLES
+============================================================ */
+
+let socket =
+  null;
+
+let peer =
+  null;
+
+
+/* ============================================================
+   CONNECT
+============================================================ */
+
+function connect(){
+
+  /*
+     Clean up previous connection.
+  */
+
+  if(socket){
+
+    try{
+
+      socket.close();
+
+    }catch(error){
+
+      console.error(
+        error
+      );
+
+    }
+
+    socket =
+      null;
+
+  }
+
+
+  if(peer){
+
+    try{
+
+      peer.close();
+
+    }catch(error){
+
+      console.error(
+        error
+      );
+
+    }
+
+    peer =
+      null;
+
+  }
+
+
+  statusBox.textContent =
+    "Connecting to PRIMA CCTV...";
+
+
+  offlineText.textContent =
+    "Connecting to camera...";
+
+
+  offline.classList.remove(
+    "hidden"
+  );
+
+
+  liveIndicator.style.display =
+    "none";
+
+
+  /*
+     Connect to Cloudflare signaling.
+  */
+
+  socket =
+    new WebSocket(
+      CCTV_WS_URL
+    );
+
+
+  /* ========================================================
+     SOCKET OPEN
+  ======================================================== */
+
+  socket.onopen =
+    () => {
+
+      console.log(
+        "CCTV signaling connected."
+      );
+
+
+      statusBox.textContent =
+        "Connected • Waiting for camera";
+
+
+      offlineText.textContent =
+        "Waiting for PRIMA camera...";
+
+
+      /*
+         Tell Chromebook:
+
+         "I am a viewer."
+      */
+
+      socket.send(
+
+        JSON.stringify({
+
+          type:
+            "viewer-ready"
+
+        })
+
+      );
+
+    };
+
+
+  /* ========================================================
+     SOCKET MESSAGE
+  ======================================================== */
+
+  socket.onmessage =
+    async event => {
+
+      try{
+
+        const message =
+          JSON.parse(
+            event.data
+          );
+
+
+        /*
+           Chromebook sent WebRTC offer.
+        */
+
+        if(
+          message.type ===
+          "offer"
+        ){
+
+          console.log(
+            "CCTV offer received."
+          );
+
+
+          await handleOffer(
+            message.offer
+          );
+
+        }
+
+
+        /*
+           ICE candidate from Chromebook.
+        */
+
+        else if(
+          message.type ===
+          "candidate"
+        ){
+
+          if(
+            peer &&
+            message.candidate
+          ){
+
+            try{
+
+              await peer.addIceCandidate(
+
+                new RTCIceCandidate(
+                  message.candidate
+                )
+
+              );
+
+            }catch(error){
+
+              console.error(
+                "ICE candidate error:",
+                error
+              );
+
+            }
+
+          }
+
+        }
+
+      }catch(error){
+
+        console.error(
+          "CCTV message error:",
+          error
+        );
+
+      }
+
+    };
+
+
+  /* ========================================================
+     SOCKET ERROR
+  ======================================================== */
+
+  socket.onerror =
+    error => {
+
+      console.error(
+        "CCTV WebSocket error:",
+        error
+      );
+
+
+      statusBox.textContent =
+        "CCTV connection error";
+
+    };
+
+
+  /* ========================================================
+     SOCKET CLOSED
+  ======================================================== */
+
+  socket.onclose =
+    () => {
+
+      console.log(
+        "CCTV signaling disconnected."
+      );
+
+
+      statusBox.textContent =
+        "CCTV disconnected";
+
+
+      offlineText.textContent =
+        "Camera connection lost";
+
+
+      offline.classList.remove(
+        "hidden"
+      );
+
+
+      liveIndicator.style.display =
+        "none";
+
+
+      /*
+         Automatically reconnect.
+
+         Useful if Chromebook changes
+         from night → day mode.
+      */
+
+      setTimeout(
+        connect,
+        3000
+      );
+
+    };
+
+}
+
+
+/* ============================================================
+   HANDLE WEBRTC OFFER
+============================================================ */
+
+async function handleOffer(
+  offer
+){
+
+  /*
+     Close previous connection.
+  */
+
+  if(peer){
+
+    try{
+
+      peer.close();
+
+    }catch(error){
+
+      console.error(
+        error
+      );
+
+    }
+
+  }
+
+
+  /*
+     Create WebRTC peer.
+  */
+
+  peer =
+    new RTCPeerConnection({
+
+      iceServers:[
+        {
+          urls:
+            "stun:stun.l.google.com:19302"
+        }
+      ]
+
+    });
+
+
+  /* ========================================================
+     REMOTE VIDEO
+  ======================================================== */
+
+  peer.ontrack =
+    event => {
+
+      console.log(
+        "CCTV video track received."
+      );
+
+
+      /*
+         Display remote camera.
+      */
+
+      if(
+        event.streams &&
+        event.streams[0]
+      ){
+
+        video.srcObject =
+          event.streams[0];
+
+      }
+
+
+      video.play()
+        .catch(
+          error => {
+
+            console.warn(
+              "Video autoplay issue:",
+              error
+            );
+
+          }
+        );
+
+
+      /*
+         Update interface.
+      */
+
+      statusBox.textContent =
+        "🔴 LIVE CCTV";
+
+
+      offline.classList.add(
+        "hidden"
+      );
+
+
+      liveIndicator.style.display =
+        "flex";
+
+    };
+
+
+  /* ========================================================
+     ICE
+  ======================================================== */
+
+  peer.onicecandidate =
+    event => {
+
+      if(
+        event.candidate &&
+        socket &&
+        socket.readyState ===
+          WebSocket.OPEN
+      ){
+
+        socket.send(
+
+          JSON.stringify({
+
+            type:
+              "candidate",
+
+            candidate:
+              event.candidate
+
+          })
+
+        );
+
+      }
+
+    };
+
+
+  /* ========================================================
+     CONNECTION STATE
+  ======================================================== */
+
+  peer.onconnectionstatechange =
+    () => {
+
+      console.log(
+        "CCTV WebRTC state:",
+        peer.connectionState
+      );
+
+
+      if(
+        peer.connectionState ===
+        "connected"
+      ){
+
+        statusBox.textContent =
+          "🔴 LIVE CCTV";
+
+      }
+
+
+      if(
+        peer.connectionState ===
+          "failed" ||
+        peer.connectionState ===
+          "disconnected" ||
+        peer.connectionState ===
+          "closed"
+      ){
+
+        statusBox.textContent =
+          "CCTV disconnected";
+
+
+        liveIndicator.style.display =
+          "none";
+
+
+        offline.classList.remove(
+          "hidden"
+        );
+
+
+        offlineText.textContent =
+          "Camera connection lost";
+
+      }
+
+    };
+
+
+  /* ========================================================
+     REMOTE DESCRIPTION
+  ======================================================== */
+
+  await peer.setRemoteDescription(
+
+    new RTCSessionDescription(
+      offer
+    )
+  );
+
+  /* ========================================================
+     CREATE ANSWER
+  ======================================================== */
+
+  const answer =
+    await peer.createAnswer();
+  await peer.setLocalDescription(
+    answer
+  );
+
+  /* ========================================================
+     SEND ANSWER
+  ======================================================== */
+
+  if(
+    socket &&
+    socket.readyState ===
+      WebSocket.OPEN
+  ){
+    socket.send(
+      JSON.stringify({
+        type:
+          "answer",
+        answer:
+          peer.localDescription
+      })
+    );
+  }
+}
+/* ============================================================
+   START
+============================================================ */
+connect();
+</script>
+</body>
+
+</html>
