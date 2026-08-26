@@ -346,12 +346,53 @@ video{
     transform:translateX(-100%);
   }
 }
+/* ============================================================
+   PRIMA NIGHT MODE
+============================================================ */
 
+#nightMode{
+  position:fixed;
+  inset:0;
+
+  background:#000;
+
+  display:none;
+
+  z-index:999999;
+
+  align-items:center;
+  justify-content:center;
+
+  flex-direction:column;
+
+  color:#111;
+
+  pointer-events:none;
+}
+
+#nightMode.active{
+  display:flex;
+}
+
+#nightModeStatus{
+  font-size:1px;
+  opacity:0;
+}
+
+body.night-mode{
+  background:#000 !important;
+}
 </style>
 </head>
 
 <body>
+<!-- ============================================================
+     PRIMA NIGHT MODE
+============================================================ -->
 
+<div id="nightMode">
+  <div id="nightModeStatus">NIGHT</div>
+</div>
 <!-- =========================
      IDLE SCREEN
 ========================= -->
@@ -552,8 +593,6 @@ video{
   </div>
 
 </div>
-
-
 <script type="module">
 
 /* ============================================================
@@ -583,85 +622,7 @@ const welcomeScreen =
 const statusBox =
   document.getElementById("status");
 
-
-/* ============================================================
-   GOOGLE APPS SCRIPT UPLOAD URL
-============================================================ */
-
-/*
-   IMPORTANT:
-
-   Replace this with your deployed Google Apps Script
-   Web App URL.
-
-   Example:
-
-   const UPLOAD_URL =
-     "https://script.google.com/macros/s/XXXXXXXXXXXX/exec";
-*/
-
-const UPLOAD_URL =
-  "https://script.google.com/macros/s/AKfycbwk5KkSK1kZCIMqG8ITAiNXKYioQGO8R-ODWOpZUsKjKdjLWylfC_XXhqAD-VI12iA7/exec";
-
-
-/* ============================================================
-   CAMERA SETTINGS
-============================================================ */
-
-const CAMERA_WIDTH = 640;
-const CAMERA_HEIGHT = 480;
-/* ============================================================
-   AI VARIABLES
-============================================================ */
-let detector;
-let triggered = false;
-let lastSeen = 0;
-let showingWelcome = false;
-
-/* ============================================================
-   RECORDING SETTINGS
-============================================================ */
-
-const RECORD_START_HOUR = 7;
-const RECORD_START_MINUTE = 20;
-
-const RECORD_END_HOUR = 8;
-const RECORD_END_MINUTE = 0;
-
-const RECORDING_INTERVAL_MS =
-  1 * 60 * 1000;
-
-
-/*
-   Video bitrate.
-
-   1.5 Mbps gives reasonable 640x480 quality
-   while keeping files relatively small.
-*/
-
-const VIDEO_BITRATE = 500000;
-/* ============================================================
-   GENERAL ANNOUNCEMENT
-============================================================ */
-
-const ANNOUNCEMENT_TIMES = [
-  "08:00","09:30","11:00",
-  "12:00","14:00",
-  "15:00","16:00"
-];
-
-const BELL_URL =
-  "https://opdkktu.github.io/trial1/bell.mp3";
-
-const NASIHAT_AUDIO =
-  "nasihat1.mp3";
-
-const NASIHAT_IMAGE =
-  "nasihat1.jpg";
-
-let announcementActive = false;
-let lastAnnouncementKey = "";
-  const announcementScreen =
+const announcementScreen =
   document.getElementById("announcementScreen");
 
 const announcementImage =
@@ -675,149 +636,118 @@ const announcementAudio =
 
 const scanArrow =
   document.getElementById("scanArrow");
-  /* ============================================================
+
+const nightMode =
+  document.getElementById("nightMode");
+
+
+/* ============================================================
+   GOOGLE APPS SCRIPT UPLOAD URL
+============================================================ */
+
+const UPLOAD_URL =
+  "https://script.google.com/macros/s/AKfycbwk5KkSK1kZCIMqG8ITAiNXKYioQGO8R-ODWOpZUsKjKdjLWylfC_XXhqAD-VI12iA7/exec";
+
+
+/* ============================================================
+   CAMERA SETTINGS
+============================================================ */
+
+const CAMERA_WIDTH = 640;
+const CAMERA_HEIGHT = 480;
+
+
+/* ============================================================
+   DAY / NIGHT SETTINGS
+============================================================ */
+
+/*
+   PRIMA DAY MODE:
+   07:00 → 17:00
+
+   PRIMA NIGHT MODE:
+   17:00 → 07:00
+*/
+
+const DAY_START_HOUR = 7;
+const DAY_START_MINUTE = 0;
+
+const NIGHT_START_HOUR = 17;
+const NIGHT_START_MINUTE = 0;
+
+
+/* ============================================================
+   AI VARIABLES
+============================================================ */
+
+let detector = null;
+
+let triggered = false;
+
+let lastSeen = 0;
+
+let showingWelcome = false;
+
+let detectionRunning = false;
+
+let systemStarting = false;
+
+let currentDayMode = false;
+
+
+/* ============================================================
+   RECORDING SETTINGS
+============================================================ */
+
+const RECORD_START_HOUR = 7;
+const RECORD_START_MINUTE = 10;
+
+const RECORD_END_HOUR = 8;
+const RECORD_END_MINUTE = 0;
+
+
+/*
+   CURRENT SETTING = 1 MINUTE
+
+   For 5-minute recordings use:
+
+   5 * 60 * 1000
+*/
+
+const RECORDING_INTERVAL_MS =
+  1 * 60 * 1000;
+
+
+const VIDEO_BITRATE = 500000;
+
+
+/* ============================================================
    GENERAL ANNOUNCEMENT
 ============================================================ */
 
-async function playGeneralAnnouncement(){
+const ANNOUNCEMENT_TIMES = [
+  "08:00",
+  "09:30",
+  "11:00",
+  "12:00",
+  "14:00",
+  "15:00",
+  "16:00"
+];
 
-  if(announcementActive){
-    return;
-  }
+const BELL_URL =
+  "https://opdkktu.github.io/trial1/bell.mp3";
 
-  announcementActive = true;
+const NASIHAT_AUDIO =
+  "nasihat1.mp3";
 
-  console.log(
-    "GENERAL ANNOUNCEMENT STARTED"
-  );
+const NASIHAT_IMAGE =
+  "nasihat1.jpg";
 
-  /*
-   * Stop welcome audio immediately.
-   */
-  audio.pause();
-  audio.currentTime = 0;
+let announcementActive = false;
 
-  /*
-   * Hide welcome screen.
-   */
-  welcomeScreen.classList.remove("show");
+let lastAnnouncementKey = "";
 
-  showingWelcome = false;
-  triggered = false;
-
-  /*
-   * Hide QR instruction + arrow.
-   */
-  scanArrow.classList.add(
-    "announcementHidden"
-  );
-
-  /*
-   * Show announcement image.
-   */
-  announcementImage.src =
-    NASIHAT_IMAGE;
-
-  announcementScreen.classList.add(
-    "show"
-  );
-
-  statusBox.textContent =
-    "📢 Pengumuman";
-
-  /*
-   * Load bell.
-   */
-  announcementBell.src =
-    BELL_URL;
-
-  announcementBell.currentTime = 0;
-
-  try{
-
-    /*
-     * Play bell first.
-     */
-    await announcementBell.play();
-
-    /*
-     * Wait until bell finishes.
-     */
-    await waitForAudioEnd(
-      announcementBell
-    );
-
-  }catch(error){
-
-    console.error(
-      "Bell playback failed:",
-      error
-    );
-
-  }
-
-  /*
-   * Play nasihat.
-   */
-  announcementAudio.src =
-    NASIHAT_AUDIO;
-
-  announcementAudio.currentTime = 0;
-
-  try{
-
-    await announcementAudio.play();
-
-    await waitForAudioEnd(
-      announcementAudio
-    );
-
-  }catch(error){
-
-    console.error(
-      "Nasihat playback failed:",
-      error
-    );
-
-  }
-
-  /*
-   * Finish announcement.
-   */
-  announcementScreen.classList.remove(
-    "show"
-  );
-
-  scanArrow.classList.remove(
-    "announcementHidden"
-  );
-
-  statusBox.textContent =
-    recordingActive
-      ? "🔴 Recording"
-      : "Ready for next visitor";
-
-  announcementActive = false;
-
-  console.log(
-    "GENERAL ANNOUNCEMENT FINISHED"
-  );
-}
-  function waitForAudioEnd(audioElement){
-  return new Promise(resolve => {
-    const finished = () => {
-      audioElement.removeEventListener(
-        "ended",
-        finished
-      );
-      resolve();
-    };
-    audioElement.addEventListener(
-      "ended",
-      finished
-    );
-  });
-}
 
 /* ============================================================
    RECORDING VARIABLES
@@ -837,51 +767,891 @@ let uploadInProgress = false;
 
 
 /* ============================================================
-   CAMERA
+   DAY / NIGHT TIME FUNCTIONS
 ============================================================ */
-async function initCamera(){
-  const stream =
-    await navigator.mediaDevices.getUserMedia({
-      video:{
-        width:{
-          ideal:CAMERA_WIDTH
-        },
-        height:{
-          ideal:CAMERA_HEIGHT
-        },
-        facingMode:"user"
-      },audio:false
+
+function getCurrentMinutes(){
+  const now = new Date();
+  return (
+    now.getHours() * 60 +
+    now.getMinutes()
+  );
+}
+
+function getDayStartMinutes(){
+  return (
+    DAY_START_HOUR * 60 +
+    DAY_START_MINUTE
+  );
+}
+
+function getNightStartMinutes(){
+  return (
+    NIGHT_START_HOUR * 60 +
+    NIGHT_START_MINUTE
+  );
+}
+
+/*
+   Returns TRUE when PRIMA should be active.
+
+   07:20 → 16:59 = DAY
+   17:00 → 07:19 = NIGHT
+*/
+
+function shouldBeDayMode(){
+
+  const minutes =
+    getCurrentMinutes();
+
+  return (
+    minutes >= getDayStartMinutes() &&
+    minutes < getNightStartMinutes()
+  );
+}
+
+/* ============================================================
+   STOP CAMERA COMPLETELY
+============================================================ */
+
+function stopCamera(){
+  console.log(
+    "Stopping camera..."
+  );
+
+  if(video.srcObject){
+
+    const tracks =
+      video.srcObject.getTracks();
+
+    tracks.forEach(track => {
+
+      try{
+
+        track.stop();
+
+      }catch(error){
+
+        console.error(
+          "Camera track stop error:",
+          error
+        );
+      }
     });
-  video.srcObject = stream;
-  return new Promise(resolve=>{
-    video.onloadedmetadata = ()=>{
-      resolve();
-    };
-  });
+    video.srcObject = null;
+  }
+  video.pause();
+}
+
+/* ============================================================
+   STOP AI
+============================================================ */
+
+function stopAI(){
+  console.log(
+    "Stopping MediaPipe..."
+  );
+  detectionRunning = false;
+
+  /*
+     MediaPipe detector has close()
+     in current Tasks Vision versions.
+  */
+
+  if(detector){
+    try{
+      if(
+        typeof detector.close ===
+        "function"
+      ){
+        detector.close();
+      }
+    }catch(error){
+      console.error(
+        "Detector close error:",
+        error
+      );
+    }
+  }
+  detector = null;
 }
 /* ============================================================
-   ANNOUNCEMENT SCHEDULER
+   STOP RECORDING
 ============================================================ */
-function announcementScheduler(){
-  if(announcementActive){
+
+function forceStopRecording(){
+  if(recordingTimer){
+    clearTimeout(
+      recordingTimer
+    );
+    recordingTimer = null;
+  }
+
+  if(
+    mediaRecorder &&
+    mediaRecorder.state === "recording"
+  ){
+    try{
+      mediaRecorder.stop();
+    }catch(error){
+      console.error(
+        "Recorder stop error:",
+        error
+      );
+    }
+  }
+}
+
+/* ============================================================
+   ENTER NIGHT MODE
+============================================================ */
+
+async function enterNightMode(){
+  if(!currentDayMode){
     return;
   }
 
+  console.log(
+    "================================="
+  );
+
+  console.log(
+    "PRIMA ENTERING NIGHT MODE"
+  );
+
+  console.log(
+    "Camera OFF"
+  );
+
+  console.log(
+    "AI OFF"
+  );
+
+  console.log(
+    "Screen BLACK"
+  );
+
+  console.log(
+    "================================="
+  );
+
+
+  currentDayMode = false;
+  /*
+     Stop recording first.
+  */
+
+  forceStopRecording();
+
+  /*
+     Stop welcome audio.
+  */
+
+  try{
+    audio.pause();
+    audio.currentTime = 0;
+  }catch(error){
+    console.error(error);
+  }
+
+  /*
+     Stop announcement audio.
+  */
+
+  try{
+    announcementBell.pause();
+    announcementBell.currentTime = 0;
+    announcementAudio.pause();
+    announcementAudio.currentTime = 0;
+  }catch(error){
+    console.error(error);
+  }
+
+
+  announcementActive = false;
+
+  /*
+     Hide all normal PRIMA UI.
+  */
+
+  welcomeScreen.classList.remove(
+    "show"
+  );
+
+  announcementScreen.classList.remove(
+    "show"
+  );
+
+  scanArrow.classList.add(
+    "announcementHidden"
+  );
+
+
+  /*
+     Stop AI first.
+  */
+
+  stopAI();
+
+
+  /*
+     Release camera hardware.
+  */
+
+  stopCamera();
+
+
+  /*
+     Hide ticker.
+  */
+
+  const ticker =
+    document.getElementById("ticker");
+
+  if(ticker){
+
+    ticker.style.display = "none";
+
+  }
+
+
+  /*
+     Hide QR.
+  */
+
+  const qrPanel =
+    document.getElementById("qrPanel");
+
+  if(qrPanel){
+
+    qrPanel.style.display = "none";
+
+  }
+
+
+  /*
+     Hide status.
+  */
+
+  statusBox.style.display =
+    "none";
+
+
+  /*
+     Activate full black screen.
+  */
+
+  nightMode.classList.add(
+    "active"
+  );
+
+  document.body.classList.add(
+    "night-mode"
+  );
+
+
+  /*
+     Make absolutely sure video is hidden.
+  */
+
+  video.style.display = "none";
+
+
+  /*
+     Prevent accidental visitor trigger.
+  */
+
+  triggered = false;
+
+  showingWelcome = false;
+
+
+  /*
+     From this point onward,
+     there is NO camera processing.
+  */
+
+}
+
+
+/* ============================================================
+   ENTER DAY MODE
+============================================================ */
+
+async function enterDayMode(){
+
+  if(currentDayMode){
+
+    return;
+
+  }
+
+  if(systemStarting){
+
+    return;
+
+  }
+
+  console.log(
+    "================================="
+  );
+
+  console.log(
+    "PRIMA ENTERING DAY MODE"
+  );
+
+  console.log(
+    "================================="
+  );
+
+
+  systemStarting = true;
+
+
+  try{
+
+    currentDayMode = true;
+
+
+    /*
+       Remove black screen.
+    */
+
+    nightMode.classList.remove(
+      "active"
+    );
+
+    document.body.classList.remove(
+      "night-mode"
+    );
+
+
+    /*
+       Restore UI.
+    */
+
+    video.style.display = "";
+
+
+    const ticker =
+      document.getElementById("ticker");
+
+    if(ticker){
+
+      ticker.style.display = "";
+
+    }
+
+
+    const qrPanel =
+      document.getElementById("qrPanel");
+
+    if(qrPanel){
+
+      qrPanel.style.display = "";
+
+    }
+
+
+    statusBox.style.display =
+      "";
+
+
+    scanArrow.classList.remove(
+      "announcementHidden"
+    );
+
+
+    statusBox.textContent =
+      "Starting camera...";
+
+
+    /*
+       Start camera.
+    */
+
+    await initCamera();
+
+
+    /*
+       IMPORTANT:
+
+       Check again after camera startup.
+
+       If the system crossed 17:00 while
+       initialization was happening, immediately
+       return to night mode.
+    */
+
+    if(!shouldBeDayMode()){
+
+      await enterNightMode();
+
+      return;
+
+    }
+
+
+    statusBox.textContent =
+      "Loading AI model...";
+
+
+    /*
+       Start MediaPipe.
+    */
+
+    await initAI();
+
+
+    /*
+       Again check operating time.
+    */
+
+    if(!shouldBeDayMode()){
+
+      await enterNightMode();
+
+      return;
+
+    }
+
+
+    statusBox.textContent =
+      "Ready";
+
+
+    /*
+       Start face detection.
+    */
+
+    if(!detectionRunning){
+
+      detectionRunning = true;
+
+      detectLoop();
+
+    }
+
+
+    /*
+       Start recording scheduler immediately.
+
+       This allows the system to start recording
+       immediately if Chrome was opened after 07:20.
+    */
+
+    recordingScheduler();
+
+
+    console.log(
+      "PRIMA DAY MODE READY"
+    );
+
+
+  }catch(error){
+
+    console.error(
+      "DAY MODE START ERROR:",
+      error
+    );
+
+
+    statusBox.textContent =
+      "Camera permission required";
+
+
+    /*
+       If camera/AI failed, don't leave
+       the system half-active.
+    */
+
+    stopAI();
+
+    stopCamera();
+
+    currentDayMode = false;
+
+
+  }finally{
+
+    systemStarting = false;
+
+  }
+
+}
+
+
+/* ============================================================
+   DAY / NIGHT CONTROLLER
+============================================================ */
+
+async function updateDayNightMode(){
+
+  const shouldDay =
+    shouldBeDayMode();
+
+
+  /*
+     Currently NIGHT,
+     but it is now operating time.
+  */
+
+  if(
+    shouldDay &&
+    !currentDayMode &&
+    !systemStarting
+  ){
+
+    await enterDayMode();
+
+    return;
+
+  }
+
+
+  /*
+     Currently DAY,
+     but operating hours have ended.
+  */
+
+  if(
+    !shouldDay &&
+    currentDayMode &&
+    !systemStarting
+  ){
+
+    await enterNightMode();
+
+    return;
+
+  }
+
+}
+
+
+/*
+   Check every 10 seconds.
+
+   This is very lightweight.
+
+   During night mode this is essentially the
+   only timer doing meaningful work.
+*/
+
+setInterval(
+  updateDayNightMode,
+  10000
+);
+
+
+/* ============================================================
+   CAMERA
+============================================================ */
+
+async function initCamera(){
+
+  /*
+     If an old stream exists,
+     release it first.
+  */
+
+  stopCamera();
+
+
+  const stream =
+    await navigator.mediaDevices.getUserMedia({
+
+      video:{
+
+        width:{
+          ideal:CAMERA_WIDTH
+        },
+
+        height:{
+          ideal:CAMERA_HEIGHT
+        },
+
+        facingMode:"user"
+
+      },
+
+      audio:false
+
+    });
+
+
+  /*
+     Make sure the system is still supposed
+     to be running.
+  */
+
+  if(!shouldBeDayMode()){
+
+    stream
+      .getTracks()
+      .forEach(track => track.stop());
+
+    throw new Error(
+      "Operating hours ended while camera was starting."
+    );
+
+  }
+
+
+  video.srcObject =
+    stream;
+
+
+  return new Promise(
+    (resolve,reject)=>{
+
+      video.onloadedmetadata = ()=>{
+
+        resolve();
+
+      };
+
+      video.onerror = error => {
+
+        reject(error);
+
+      };
+
+    }
+  );
+
+}
+
+
+/* ============================================================
+   ANNOUNCEMENT
+============================================================ */
+
+async function playGeneralAnnouncement(){
+
+  /*
+     NEVER run announcement in night mode.
+  */
+
+  if(!currentDayMode){
+
+    return;
+
+  }
+
+
+  if(announcementActive){
+
+    return;
+
+  }
+
+
+  announcementActive = true;
+
+
+  console.log(
+    "GENERAL ANNOUNCEMENT STARTED"
+  );
+
+
+  /*
+     Stop welcome audio.
+  */
+
+  audio.pause();
+
+  audio.currentTime = 0;
+
+
+  welcomeScreen.classList.remove(
+    "show"
+  );
+
+  showingWelcome = false;
+
+  triggered = false;
+
+
+  scanArrow.classList.add(
+    "announcementHidden"
+  );
+
+
+  announcementImage.src =
+    NASIHAT_IMAGE;
+
+
+  announcementScreen.classList.add(
+    "show"
+  );
+
+
+  statusBox.textContent =
+    "📢 Pengumuman";
+
+
+  announcementBell.src =
+    BELL_URL;
+
+  announcementBell.currentTime =
+    0;
+
+
+  try{
+
+    await announcementBell.play();
+
+    await waitForAudioEnd(
+      announcementBell
+    );
+
+  }catch(error){
+
+    console.error(
+      "Bell playback failed:",
+      error
+    );
+
+  }
+
+
+  /*
+     If night mode started during
+     the bell, stop immediately.
+  */
+
+  if(!currentDayMode){
+
+    announcementActive = false;
+
+    return;
+
+  }
+
+
+  announcementAudio.src =
+    NASIHAT_AUDIO;
+
+  announcementAudio.currentTime =
+    0;
+
+
+  try{
+
+    await announcementAudio.play();
+
+    await waitForAudioEnd(
+      announcementAudio
+    );
+
+  }catch(error){
+
+    console.error(
+      "Nasihat playback failed:",
+      error
+    );
+
+  }
+
+
+  announcementScreen.classList.remove(
+    "show"
+  );
+
+
+  scanArrow.classList.remove(
+    "announcementHidden"
+  );
+
+
+  announcementActive = false;
+
+
+  statusBox.textContent =
+    recordingActive
+      ? "🔴 Recording"
+      : "Ready for next visitor";
+
+
+  console.log(
+    "GENERAL ANNOUNCEMENT FINISHED"
+  );
+
+}
+
+
+function waitForAudioEnd(
+  audioElement
+){
+
+  return new Promise(resolve => {
+
+    const finished = () => {
+
+      audioElement.removeEventListener(
+        "ended",
+        finished
+      );
+
+      resolve();
+
+    };
+
+    audioElement.addEventListener(
+      "ended",
+      finished
+    );
+
+  });
+
+}
+
+
+/* ============================================================
+   ANNOUNCEMENT SCHEDULER
+============================================================ */
+
+function announcementScheduler(){
+
+  /*
+     Don't even process announcements
+     during night mode.
+  */
+
+  if(!currentDayMode){
+
+    return;
+
+  }
+
+
+  if(announcementActive){
+
+    return;
+
+  }
+
+
   const now =
     new Date();
+
 
   const hours =
     String(
       now.getHours()
     ).padStart(2,"0");
 
+
   const minutes =
     String(
       now.getMinutes()
     ).padStart(2,"0");
 
+
   const currentTime =
     hours + ":" + minutes;
+
 
   if(
     ANNOUNCEMENT_TIMES.includes(
@@ -894,11 +1664,7 @@ function announcementScheduler(){
       "_" +
       currentTime;
 
-    /*
-     * Prevent the same announcement
-     * from triggering repeatedly during
-     * the same minute.
-     */
+
     if(
       announcementKey !==
       lastAnnouncementKey
@@ -907,96 +1673,198 @@ function announcementScheduler(){
       lastAnnouncementKey =
         announcementKey;
 
+
       playGeneralAnnouncement();
 
     }
+
   }
+
 }
+
 
 setInterval(
   announcementScheduler,
   1000
 );
+
+
 /* ============================================================
    AI INITIALIZATION
 ============================================================ */
 
 async function initAI(){
+
   const vision =
     await FilesetResolver.forVisionTasks(
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
     );
 
+
+  /*
+     Check operating time before creating
+     the AI detector.
+  */
+
+  if(!shouldBeDayMode()){
+
+    throw new Error(
+      "AI initialization attempted outside operating hours."
+    );
+
+  }
+
+
   detector =
     await FaceDetector.createFromOptions(
+
       vision,
-      {baseOptions:{
+
+      {
+
+        baseOptions:{
+
           modelAssetPath:
-          "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
+            "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
+
         },
+
         runningMode:"VIDEO",
+
         minDetectionConfidence:0.6
+
       }
+
     );
+
 }
+
+
 /* ============================================================
    CLOCK
 ============================================================ */
 
 function updateClock(){
+
+  /*
+     Don't update DOM unnecessarily
+     during night mode.
+  */
+
+  if(!currentDayMode){
+
+    return;
+
+  }
+
+
   const now =
     new Date();
+
+
   const time =
-    now.toLocaleTimeString("en-GB");
+    now.toLocaleTimeString(
+      "en-GB"
+    );
+
+
   const date =
     now.toLocaleDateString(
       "en-GB",
       {
+
         weekday:"long",
+
         day:"2-digit",
+
         month:"long",
+
         year:"numeric"
+
       }
     );
+
+
   document.getElementById("clock")
     .textContent = time;
+
+
   document.getElementById("date")
     .textContent = date;
+
 }
+
+
+/*
+   Clock can remain every second.
+   It is not running camera/AI.
+*/
+
 setInterval(
   updateClock,
   1000
 );
-updateClock();
+
+
 /* ============================================================
-   CHECK WHETHER CURRENT TIME IS INSIDE RECORDING WINDOW
+   RECORDING TIME
 ============================================================ */
 
 function isRecordingTime(){
+
+  /*
+     Recording is NEVER allowed
+     during night mode.
+  */
+
+  if(!currentDayMode){
+
+    return false;
+
+  }
+
+
   const now =
     new Date();
+
+
   const minutes =
     now.getHours() * 60 +
     now.getMinutes();
+
+
   const start =
     RECORD_START_HOUR * 60 +
     RECORD_START_MINUTE;
+
+
   const end =
     RECORD_END_HOUR * 60 +
     RECORD_END_MINUTE;
+
+
   return (
     minutes >= start &&
     minutes < end
   );
+
 }
+
+
 /* ============================================================
    FORMAT DATE
 ============================================================ */
+
 function pad(number){
+
   return String(number)
     .padStart(2,"0");
+
 }
+
+
 function formatDate(date){
+
   return (
     date.getFullYear() +
     "-" +
@@ -1004,9 +1872,12 @@ function formatDate(date){
     "-" +
     pad(date.getDate())
   );
+
 }
 
+
 function formatTime(date){
+
   return (
     pad(date.getHours()) +
     ":" +
@@ -1014,7 +1885,10 @@ function formatTime(date){
     ":" +
     pad(date.getSeconds())
   );
+
 }
+
+
 /* ============================================================
    CREATE FILENAME
 ============================================================ */
@@ -1023,14 +1897,21 @@ function createRecordingFilename(
   startDate,
   endDate
 ){
+
   const date =
     formatDate(startDate);
+
+
   const start =
     pad(startDate.getHours()) +
     pad(startDate.getMinutes());
+
+
   const end =
     pad(endDate.getHours()) +
     pad(endDate.getMinutes());
+
+
   return (
     "PRIMA_" +
     date +
@@ -1040,144 +1921,259 @@ function createRecordingFilename(
     end +
     ".webm"
   );
+
 }
+
+
 /* ============================================================
-   GET BEST MEDIARECORDER FORMAT
+   MEDIARECORDER FORMAT
 ============================================================ */
+
 function getSupportedMimeType(){
+
   const types = [
+
     "video/webm;codecs=vp9",
+
     "video/webm;codecs=vp8",
+
     "video/webm"
+
   ];
+
+
   for(
     const type of types
   ){
+
     if(
-      MediaRecorder.isTypeSupported(type)
+      MediaRecorder.isTypeSupported(
+        type
+      )
     ){
+
       return type;
+
     }
-  } return "";
+
+  }
+
+
+  return "";
+
 }
+
+
 /* ============================================================
    START RECORDING
 ============================================================ */
+
 function startRecording(){
+
   if(
-    recordingActive){
+    recordingActive
+  ){
+
     return;
+
   }
+
+
+  /*
+     Never record at night.
+  */
+
+  if(!currentDayMode){
+
+    return;
+
+  }
+
+
   if(
     !video.srcObject
   ){
+
     console.error(
       "Camera stream unavailable."
     );
+
     return;
+
   }
+
+
   if(
     !isRecordingTime()
   ){
+
     return;
+
   }
+
+
   const mimeType =
     getSupportedMimeType();
+
+
   recordingChunks = [];
+
+
   recordingStartTime =
     new Date();
+
+
   try{
+
     mediaRecorder =
       mimeType
+
       ?
+
       new MediaRecorder(
         video.srcObject,
         {
+
           mimeType:mimeType,
+
           videoBitsPerSecond:
             VIDEO_BITRATE
+
         }
       )
+
       :
+
       new MediaRecorder(
         video.srcObject
       );
+
+
   }catch(error){
+
     console.error(
       "MediaRecorder failed:",
       error
     );
 
+
     statusBox.textContent =
       "Recording unavailable";
+
+
     return;
+
   }
+
+
   mediaRecorder.ondataavailable =
     event => {
+
       if(
         event.data &&
         event.data.size > 0
       ){
+
         recordingChunks.push(
           event.data
         );
+
       }
+
     };
+
+
   mediaRecorder.onstop =
     async () => {
+
       await finishRecording();
+
     };
+
+
   mediaRecorder.onerror =
     event => {
+
       console.error(
         "MediaRecorder error:",
         event
       );
+
       recordingActive = false;
+
     };
+
+
   mediaRecorder.start();
+
+
   recordingActive = true;
+
+
   statusBox.textContent =
     "🔴 Recording :30–08:00";
+
+
   console.log(
     "Recording started:",
     formatTime(recordingStartTime)
   );
+
+
   /*
-     Stop this recording after 5 minutes.
+     Stop this recording after
+     RECORDING_INTERVAL_MS.
   */
+
   recordingTimer =
     setTimeout(
       stopRecording,
       RECORDING_INTERVAL_MS
     );
+
 }
+
+
 /* ============================================================
    STOP RECORDING
 ============================================================ */
+
 function stopRecording(){
-  if(
-    recordingTimer
-  ){
+
+  if(recordingTimer){
+
     clearTimeout(
       recordingTimer
     );
+
     recordingTimer = null;
+
   }
-  if(
-    !mediaRecorder
-  ){
+
+
+  if(!mediaRecorder){
+
     return;
+
   }
+
+
   if(
-    mediaRecorder.state === "recording"
+    mediaRecorder.state ===
+    "recording"
   ){
+
     mediaRecorder.stop();
+
   }
+
 }
+
+
 /* ============================================================
    FINISH RECORDING
 ============================================================ */
+
 async function finishRecording(){
 
   const endDate =
@@ -1245,9 +2241,7 @@ async function finishRecording(){
 
 
   /*
-     Upload immediately.
-
-     This means we don't wait until 08:00.
+     Upload.
   */
 
   await uploadRecording(
@@ -1257,17 +2251,17 @@ async function finishRecording(){
 
 
   /*
-     Check whether we should start another
-     5-minute recording.
+     IMPORTANT:
+
+     If night mode started while
+     uploading, DO NOT start another
+     recording.
   */
 
   if(
+    currentDayMode &&
     isRecordingTime()
   ){
-
-    /*
-       Small delay between files.
-    */
 
     setTimeout(
       startRecording,
@@ -1277,10 +2271,13 @@ async function finishRecording(){
   }else{
 
     statusBox.textContent =
-      "Recording finished";
+      currentDayMode
+        ? "Recording finished"
+        : "Night mode";
+
 
     console.log(
-      "Daily recording completed."
+      "Recording completed."
     );
 
   }
@@ -1289,7 +2286,7 @@ async function finishRecording(){
 
 
 /* ============================================================
-   UPLOAD VIDEO TO GOOGLE APPS SCRIPT
+   UPLOAD VIDEO
 ============================================================ */
 
 async function uploadRecording(
@@ -1297,25 +2294,35 @@ async function uploadRecording(
   filename
 ){
 
-if (!UPLOAD_URL) {
+  if(!UPLOAD_URL){
+
     console.warn(
       "Google Apps Script upload URL has not been configured."
     );
+
+
     statusBox.textContent =
       "Video saved locally — upload URL not configured";
+
+
     return;
+
   }
+
+
   uploadInProgress = true;
+
+
   statusBox.textContent =
     "Uploading " + filename;
+
+
   try{
-    /*
-       Convert video to Base64.
-       Apps Script receives this and creates
-       the Drive file.
-    */
+
     const base64 =
-      await blobToBase64(blob);
+      await blobToBase64(
+        blob
+      );
 
 
     const payload = {
@@ -1339,12 +2346,16 @@ if (!UPLOAD_URL) {
           method:"POST",
 
           headers:{
+
             "Content-Type":
               "text/plain;charset=utf-8"
+
           },
 
           body:
-            JSON.stringify(payload)
+            JSON.stringify(
+              payload
+            )
 
         }
       );
@@ -1360,8 +2371,17 @@ if (!UPLOAD_URL) {
     );
 
 
-    statusBox.textContent =
-      "Uploaded: " + filename;
+    /*
+       Don't display upload status
+       over night mode.
+    */
+
+    if(currentDayMode){
+
+      statusBox.textContent =
+        "Uploaded: " + filename;
+
+    }
 
 
   }catch(error){
@@ -1372,8 +2392,12 @@ if (!UPLOAD_URL) {
     );
 
 
-    statusBox.textContent =
-      "Upload failed: " + filename;
+    if(currentDayMode){
+
+      statusBox.textContent =
+        "Upload failed: " + filename;
+
+    }
 
   }
 
@@ -1403,11 +2427,6 @@ function blobToBase64(blob){
             reader.result;
 
 
-          /*
-             Remove:
-             data:video/webm;base64,
-          */
-
           const base64 =
             result.split(",")[1];
 
@@ -1421,7 +2440,9 @@ function blobToBase64(blob){
         reject;
 
 
-      reader.readAsDataURL(blob);
+      reader.readAsDataURL(
+        blob
+      );
 
     }
   );
@@ -1436,9 +2457,19 @@ function blobToBase64(blob){
 function recordingScheduler(){
 
   /*
-     If it is currently :30–08:00
-     and we are not recording,
-     start recording.
+     No recording processing at night.
+  */
+
+  if(!currentDayMode){
+
+    return;
+
+  }
+
+
+  /*
+     Start recording during
+     07:20–08:00.
   */
 
   if(
@@ -1453,7 +2484,8 @@ function recordingScheduler(){
 
 
   /*
-     After 08:00 make sure recording has stopped.
+     Make absolutely sure recording
+     stops after 08:00.
   */
 
   if(
@@ -1469,10 +2501,9 @@ function recordingScheduler(){
 
 
 /*
-   Check every second.
+   Every second during the day.
 
-   This also means if the page was opened at
-   :32, it will start recording immediately.
+   At night this immediately returns.
 */
 
 setInterval(
@@ -1487,99 +2518,136 @@ setInterval(
 
 async function detectLoop(){
 
-  if(detector){
+  /*
+     Stop the animation loop completely
+     when night mode starts.
+  */
 
-    const result =
-      detector.detectForVideo(
-        video,
-        performance.now()
-      );
+  if(
+    !currentDayMode ||
+    !detectionRunning
+  ){
 
+    return;
 
-    let closePerson = false;
-
-
-    if(
-      result.detections.length
-    ){
-
-      const box =
-        result
-          .detections[0]
-          .boundingBox;
+  }
 
 
-      const area =
-        (
-          box.width *
-          box.height
-        ) /
-        (
-          video.videoWidth *
-          video.videoHeight
+  if(
+    detector &&
+    video.readyState >= 2
+  ){
+
+    try{
+
+      const result =
+        detector.detectForVideo(
+          video,
+          performance.now()
         );
 
 
-      /*
-         Visitor is close enough.
-      */
+      let closePerson = false;
+
 
       if(
-        area > 0.08
+        result.detections.length
       ){
 
-        closePerson = true;
+        const box =
+          result
+            .detections[0]
+            .boundingBox;
 
-        lastSeen =
-          Date.now();
+
+        const area =
+          (
+            box.width *
+            box.height
+          ) /
+          (
+            video.videoWidth *
+            video.videoHeight
+          );
+
+
+        if(
+          area > 0.08
+        ){
+
+          closePerson = true;
+
+          lastSeen =
+            Date.now();
+
+        }
 
       }
 
-    }
 
-
-    /*
-       IMPORTANT:
-
-       This only controls the welcome screen.
-
-       It does NOT control video recording.
-    */
-
-    if(
-      closePerson &&
-      !triggered &&
-      !showingWelcome &&
-      !announcementActive
-    ){
-
-      playWelcome();
-
-    }
-
-
-    if(
-      triggered
-    ){
+      /*
+         Visitor detection.
+      */
 
       if(
-        Date.now() -
-        lastSeen >
-        2000
+        closePerson &&
+        !triggered &&
+        !showingWelcome &&
+        !announcementActive
       ){
 
-        triggered = false;
+        playWelcome();
 
-        statusBox.textContent =
-          recordingActive
+      }
 
-          ?
 
-          "🔴 Recording"
+      if(
+        triggered
+      ){
 
-          :
+        if(
+          Date.now() -
+          lastSeen >
+          2000
+        ){
 
-          "Ready for next visitor";
+          triggered = false;
+
+
+          if(currentDayMode){
+
+            statusBox.textContent =
+              recordingActive
+
+              ?
+
+              "🔴 Recording"
+
+              :
+
+              "Ready for next visitor";
+
+          }
+
+        }
+
+      }
+
+    }catch(error){
+
+      /*
+         Ignore individual AI frames.
+
+         If the AI was closed because
+         night mode started, simply exit.
+      */
+
+      if(currentDayMode){
+
+        console.error(
+          "Face detection error:",
+          error
+        );
 
       }
 
@@ -1588,9 +2656,21 @@ async function detectLoop(){
   }
 
 
-  requestAnimationFrame(
-    detectLoop
-  );
+  /*
+     Only continue while day mode
+     is active.
+  */
+
+  if(
+    currentDayMode &&
+    detectionRunning
+  ){
+
+    requestAnimationFrame(
+      detectLoop
+    );
+
+  }
 
 }
 
@@ -1598,12 +2678,30 @@ async function detectLoop(){
 /* ============================================================
    WELCOME SCREEN
 ============================================================ */
+
 async function playWelcome(){
+
+  /*
+     Never trigger during night mode.
+  */
+
+  if(!currentDayMode){
+
+    return;
+
+  }
+
+
   showingWelcome = true;
+
   triggered = true;
+
+
   statusBox.textContent =
     recordingActive
+
     ?
+
     "Visitor detected • 🔴 Recording"
 
     :
@@ -1652,59 +2750,41 @@ async function playWelcome(){
 
 async function start(){
 
-  try{
+  /*
+     Determine the correct mode immediately.
 
-    statusBox.textContent =
-      "Starting camera...";
+     This is important.
 
+     Example:
 
-    await initCamera();
+     Chrome starts at 10:00
+     → DAY MODE
 
+     Chrome starts at 19:00
+     → NIGHT MODE
+  */
 
-    statusBox.textContent =
-      "Loading AI model...";
+  if(shouldBeDayMode()){
+    currentDayMode = false;
+    await enterDayMode();
 
-
-    await initAI();
-
-
-    statusBox.textContent =
-      "Ready";
-
-
-    /*
-       Start face detection.
-    */
-
-    detectLoop();
-
+  }else{
 
     /*
-       Check recording immediately.
+       We are starting outside
+       operating hours.
 
-       Important if the page opens after 07:30.
+       Don't initialise camera.
+       Don't initialise AI.
     */
-
-    recordingScheduler();
-
-
-  }catch(err){
-
-    console.error(
-      err
-    );
-
-
-    statusBox.textContent =
-      "Camera permission required";
-
+    currentDayMode = true;
+    await enterNightMode();
   }
-
 }
-
-
+/* ============================================================
+   START PRIMA
+============================================================ */
 start();
-
 </script>
 
 </body>
