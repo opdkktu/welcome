@@ -694,7 +694,14 @@ let systemStarting = false;
 
 let currentDayMode = false;
 
+/* ============================================================
+   TIMESTAMP VIDEO CANVAS
+============================================================ */
 
+let recordingCanvas = null;
+let recordingCanvasContext = null;
+let recordingCanvasStream = null;
+let timestampAnimationFrame = null;
 /* ============================================================
    RECORDING SETTINGS
 ============================================================ */
@@ -1969,7 +1976,212 @@ function getSupportedMimeType(){
   return "";
 
 }
+/* ============================================================
+   CREATE TIMESTAMPED VIDEO STREAM
+============================================================ */
 
+function createTimestampedVideoStream(){
+
+  /*
+     Create canvas only once.
+  */
+
+  if(!recordingCanvas){
+
+    recordingCanvas =
+      document.createElement("canvas");
+
+    recordingCanvas.width =
+      CAMERA_WIDTH;
+
+    recordingCanvas.height =
+      CAMERA_HEIGHT;
+
+    recordingCanvasContext =
+      recordingCanvas.getContext("2d");
+
+  }
+
+
+  /*
+     Draw camera frame + timestamp.
+  */
+
+  function drawFrame(){
+
+    /*
+       Stop drawing if recording has ended.
+    */
+
+    if(!recordingActive){
+
+      timestampAnimationFrame = null;
+
+      return;
+
+    }
+
+
+    const ctx =
+      recordingCanvasContext;
+
+
+    /*
+       Draw current camera frame.
+    */
+
+    ctx.drawImage(
+      video,
+      0,
+      0,
+      recordingCanvas.width,
+      recordingCanvas.height
+    );
+
+
+    /* ========================================================
+       TIMESTAMP
+    ======================================================== */
+
+    const now =
+      new Date();
+
+
+    const timestamp =
+      String(now.getDate()).padStart(2,"0") +
+      "/" +
+      String(
+        now.getMonth() + 1
+      ).padStart(2,"0") +
+      "/" +
+      now.getFullYear() +
+      " " +
+      String(
+        now.getHours()
+      ).padStart(2,"0") +
+      ":" +
+      String(
+        now.getMinutes()
+      ).padStart(2,"0") +
+      ":" +
+      String(
+        now.getSeconds()
+      ).padStart(2,"0");
+
+
+    /*
+       Timestamp font.
+    */
+
+    ctx.font =
+      "bold 18px Arial";
+
+
+    /*
+       Measure text.
+    */
+
+    const textWidth =
+      ctx.measureText(
+        timestamp
+      ).width;
+
+
+    const padding = 8;
+
+
+    const x =
+      recordingCanvas.width -
+      textWidth -
+      padding * 2 -
+      10;
+
+
+    const y =
+      recordingCanvas.height -
+      10;
+
+
+    /*
+       Semi-transparent black background.
+    */
+
+    ctx.fillStyle =
+      "rgba(0,0,0,0.65)";
+
+
+    ctx.fillRect(
+
+      x,
+
+      y - 25,
+
+      textWidth +
+      padding * 2,
+
+      25
+
+    );
+
+
+    /*
+       White timestamp.
+    */
+
+    ctx.fillStyle =
+      "#ffffff";
+
+
+    ctx.textBaseline =
+      "middle";
+
+
+    ctx.fillText(
+
+      timestamp,
+
+      x + padding,
+
+      y - 12
+
+    );
+
+
+    /*
+       Continue drawing.
+
+       Approximately 30 FPS.
+    */
+
+    timestampAnimationFrame =
+      requestAnimationFrame(
+        drawFrame
+      );
+
+  }
+
+
+  /*
+     Create canvas video stream.
+  */
+
+  recordingCanvasStream =
+    recordingCanvas.captureStream(30);
+
+
+  /*
+     Start drawing.
+  */
+
+  timestampAnimationFrame =
+    requestAnimationFrame(
+      drawFrame
+    );
+
+
+  return recordingCanvasStream;
+
+}
 
 /* ============================================================
    START RECORDING
@@ -2017,7 +2229,21 @@ function startRecording(){
     return;
 
   }
+ /*
+     Make sure camera is ready.
+  */
 
+  if(
+    video.readyState < 2
+  ){
+
+    console.warn(
+      "Camera video is not ready."
+    );
+
+    return;
+
+  }
 
   const mimeType =
     getSupportedMimeType();
@@ -2028,6 +2254,22 @@ function startRecording(){
 
   recordingStartTime =
     new Date();
+
+  recordingActive = true;
+   /*
+     Create:
+
+     CAMERA
+        ↓
+     CANVAS
+        ↓
+     TIMESTAMP
+        ↓
+     MEDIARECORDER
+  */
+
+  const timestampStream =
+    createTimestampedVideoStream();
 
 
   try{
@@ -2062,7 +2304,14 @@ function startRecording(){
       "MediaRecorder failed:",
       error
     );
+    recordingActive = false;
 
+
+    /*
+       Stop timestamp canvas stream.
+    */
+
+    stopTimestampVideoStream();
 
     statusBox.textContent =
       "Recording unavailable";
@@ -2113,12 +2362,11 @@ function startRecording(){
 
   mediaRecorder.start();
 
-
   recordingActive = true;
 
 
   statusBox.textContent =
-    "🔴 Recording :30–08:00";
+    "🔴 Recording :Timestamp ON ";
 
 
   console.log(
@@ -2139,7 +2387,65 @@ function startRecording(){
     );
 
 }
+/* ============================================================
+   STOP TIMESTAMP VIDEO STREAM
+============================================================ */
 
+function stopTimestampVideoStream(){
+
+  /*
+     Stop canvas animation.
+  */
+
+  if(
+    timestampAnimationFrame
+  ){
+
+    cancelAnimationFrame(
+      timestampAnimationFrame
+    );
+
+    timestampAnimationFrame =
+      null;
+
+  }
+
+
+  /*
+     Stop canvas MediaStream tracks.
+
+     IMPORTANT:
+
+     This does NOT stop the camera.
+
+     It only stops the temporary
+     recording canvas stream.
+  */
+
+  if(
+    recordingCanvasStream
+  ){
+
+    recordingCanvasStream
+      .getTracks()
+      .forEach(track => {
+
+        try{
+
+          track.stop();
+
+        }catch(error){
+          console.error(
+            "Canvas track stop error:",
+            error
+          );
+        }
+      });
+
+    recordingCanvasStream =
+      null;
+  }
+}
 
 /* ============================================================
    STOP RECORDING
@@ -2159,21 +2465,16 @@ function stopRecording(){
 
 
   if(!mediaRecorder){
-
+    stopTimestampVideoStream();
     return;
-
   }
-
 
   if(
     mediaRecorder.state ===
     "recording"
   ){
-
     mediaRecorder.stop();
-
   }
-
 }
 
 
@@ -2203,7 +2504,7 @@ async function finishRecording(){
 
 
   recordingActive = false;
-
+stopTimestampVideoStream();
 
   const mimeType =
     mediaRecorder &&
