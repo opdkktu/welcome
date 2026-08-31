@@ -2899,11 +2899,9 @@ function startRecording(){
      RECORDING_INTERVAL_MS.
   */
 
-  recordingTimer =
-    setTimeout(
-      stopRecording,
-      RECORDING_INTERVAL_MS
-    );
+  mediaRecorder.start(
+  RECORDING_INTERVAL_MS
+);
 
 }
 /* ============================================================
