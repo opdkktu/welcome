@@ -721,7 +721,7 @@ let cctvActive = false;
 /* Additional recording windows */
 const RECORDING_WINDOWS = [
   { start: "07:10", end: "08:00" },
-  { start: "11:25", end: "11:30" },
+  { start: "12:00", end: "12:10" },
   { start: "17:00", end: "17:16" }
 ];
 
@@ -787,1539 +787,22 @@ let uploadInProgress = false;
 
 
 /* ============================================================
-   DAY / NIGHT TIME FUNCTIONS
+   RECORDING SETTINGS
 ============================================================ */
-
-function getCurrentMinutes(){
-  const now = new Date();
-  return (
-    now.getHours() * 60 +
-    now.getMinutes()
-  );
-}
-
-function getDayStartMinutes(){
-  return (
-    DAY_START_HOUR * 60 +
-    DAY_START_MINUTE
-  );
-}
-
-function getNightStartMinutes(){
-  return (
-    NIGHT_START_HOUR * 60 +
-    NIGHT_START_MINUTE
-  );
-}
 
 /*
-   Returns TRUE when PRIMA should be active.
+   EACH FILE = 2 MINUTES
 
-   07:20 → 16:59 = DAY
-   17:00 → 07:19 = NIGHT
+   Camera itself remains running continuously.
+
+   The MediaRecorder is restarted every
+   2 minutes to create a new file.
 */
 
-function shouldBeDayMode(){
+const RECORDING_INTERVAL_MS =
+  2 * 60 * 1000;
 
-  const minutes =
-    getCurrentMinutes();
 
-  return (
-    minutes >= getDayStartMinutes() &&
-    minutes < getNightStartMinutes()
-  );
-}
-
-/* ============================================================
-   STOP CAMERA COMPLETELY
-============================================================ */
-
-function stopCamera(){
-  console.log(
-    "Stopping camera..."
-  );
-
-  if(video.srcObject){
-
-    const tracks =
-      video.srcObject.getTracks();
-
-    tracks.forEach(track => {
-
-      try{
-
-        track.stop();
-
-      }catch(error){
-
-        console.error(
-          "Camera track stop error:",
-          error
-        );
-      }
-    });
-    video.srcObject = null;
-  }
-  video.pause();
-}
-
-/* ============================================================
-   STOP AI
-============================================================ */
-
-function stopAI(){
-  console.log(
-    "Stopping MediaPipe..."
-  );
-  detectionRunning = false;
-
-  /*
-     MediaPipe detector has close()
-     in current Tasks Vision versions.
-  */
-
-  if(detector){
-    try{
-      if(
-        typeof detector.close ===
-        "function"
-      ){
-        detector.close();
-      }
-    }catch(error){
-      console.error(
-        "Detector close error:",
-        error
-      );
-    }
-  }
-  detector = null;
-}
-/* ============================================================
-   STOP RECORDING
-============================================================ */
-
-function forceStopRecording(){
-  if(recordingTimer){
-    clearTimeout(
-      recordingTimer
-    );
-    recordingTimer = null;
-  }
-
-  if(
-    mediaRecorder &&
-    mediaRecorder.state === "recording"
-  ){
-    try{
-      mediaRecorder.stop();
-    }catch(error){
-      console.error(
-        "Recorder stop error:",
-        error
-      );
-    }
-  }
-}
-
-/* ============================================================
-   ENTER NIGHT MODE
-============================================================ */
-
-async function enterNightMode(){
-  if(!currentDayMode){
-    return;
-  }
-
-  console.log(
-    "================================="
-  );
-
-  console.log(
-    "PRIMA ENTERING NIGHT MODE"
-  );
-
-  console.log(
-    "Camera OFF"
-  );
-
-  console.log(
-    "AI OFF"
-  );
-
-  console.log(
-    "Screen BLACK"
-  );
-
-  console.log(
-    "================================="
-  );
-
-
-  currentDayMode = false;
-  /*
-     Stop recording first.
-  */
-
-  forceStopRecording();
-
-  /*
-     Stop welcome audio.
-  */
-
-  try{
-    audio.pause();
-    audio.currentTime = 0;
-  }catch(error){
-    console.error(error);
-  }
-
-  /*
-     Stop announcement audio.
-  */
-
-  try{
-    announcementBell.pause();
-    announcementBell.currentTime = 0;
-    announcementAudio.pause();
-    announcementAudio.currentTime = 0;
-  }catch(error){
-    console.error(error);
-  }
-
-
-  announcementActive = false;
-
-  /*
-     Hide all normal PRIMA UI.
-  */
-
-  welcomeScreen.classList.remove(
-    "show"
-  );
-
-  announcementScreen.classList.remove(
-    "show"
-  );
-
-  scanArrow.classList.add(
-    "announcementHidden"
-  );
-
-
-  /*
-     Stop AI first.
-  */
-
-  stopAI();
-
-
-  /*
-     Release camera hardware.
-  */
-
-  stopCamera();
-
-
-  /*
-     Hide ticker.
-  */
-
-  const ticker =
-    document.getElementById("ticker");
-
-  if(ticker){
-
-    ticker.style.display = "none";
-
-  }
-
-
-  /*
-     Hide QR.
-  */
-
-  const qrPanel =
-    document.getElementById("qrPanel");
-
-  if(qrPanel){
-
-    qrPanel.style.display = "none";
-
-  }
-
-
-  /*
-     Hide status.
-  */
-
-  statusBox.style.display =
-    "none";
-
-
-  /*
-     Activate full black screen.
-  */
-
-  nightMode.classList.add(
-    "active"
-  );
-
-  document.body.classList.add(
-    "night-mode"
-  );
-
-
-  /*
-     Make absolutely sure video is hidden.
-  */
-
-  video.style.display = "none";
-
-
-  /*
-     Prevent accidental visitor trigger.
-  */
-
-  triggered = false;
-
-  showingWelcome = false;
-
-
-  /*
-     From this point onward,
-     there is NO camera processing.
-  */
-
-}
-
-
-/* ============================================================
-   ENTER DAY MODE
-============================================================ */
-
-async function enterDayMode(){
-
-  if(currentDayMode){
-
-    return;
-
-  }
-
-  if(systemStarting){
-
-    return;
-
-  }
-
-  console.log(
-    "================================="
-  );
-
-  console.log(
-    "PRIMA ENTERING DAY MODE"
-  );
-
-  console.log(
-    "================================="
-  );
-
-
-  systemStarting = true;
-
-
-  try{
-
-    currentDayMode = true;
-
-
-    /*
-       Remove black screen.
-    */
-
-    nightMode.classList.remove(
-      "active"
-    );
-
-    document.body.classList.remove(
-      "night-mode"
-    );
-
-
-    /*
-       Restore UI.
-    */
-
-    video.style.display = "";
-
-
-    const ticker =
-      document.getElementById("ticker");
-
-    if(ticker){
-
-      ticker.style.display = "";
-
-    }
-
-
-    const qrPanel =
-      document.getElementById("qrPanel");
-
-    if(qrPanel){
-
-      qrPanel.style.display = "";
-
-    }
-
-
-    statusBox.style.display =
-      "";
-
-
-    scanArrow.classList.remove(
-      "announcementHidden"
-    );
-
-
-    statusBox.textContent =
-      "Starting camera...";
-
-
-    /*
-       Start camera.
-    */
-
-    await initCamera();
-
-
-    /*
-       IMPORTANT:
-
-       Check again after camera startup.
-
-       If the system crossed 17:00 while
-       initialization was happening, immediately
-       return to night mode.
-    */
-
-    if(!shouldBeDayMode()){
-      await enterNightMode();
-      return;
-    }
-startCCTV();
-    statusBox.textContent =
-      "Loading AI model...";
-
-    /*
-       Start MediaPipe.
-    */
-
-    await initAI();
-
-
-    /*
-       Again check operating time.
-    */
-
-    if(!shouldBeDayMode()){
-
-      await enterNightMode();
-
-      return;
-
-    }
-
-
-    statusBox.textContent =
-      "Ready";
-
-
-    /*
-       Start face detection.
-    */
-
-    if(!detectionRunning){
-
-      detectionRunning = true;
-
-      detectLoop();
-
-    }
-
-
-    /*
-       Start recording scheduler immediately.
-
-       This allows the system to start recording
-       immediately if Chrome was opened after 07:20.
-    */
-    recordingScheduler();
-    console.log(
-      "PRIMA DAY MODE READY"
-    );
-
-  }catch(error){
-
-    console.error(
-      "DAY MODE START ERROR:",
-      error
-    );
-
-    statusBox.textContent =
-      "Camera permission required";
-    /*
-       If camera/AI failed, don't leave
-       the system half-active.
-    */
-stopCCTV();
-    stopAI();
-    stopCamera();
-    currentDayMode = false;
-  }finally{
-    systemStarting = false;
-  }
-}
-/* ============================================================
-   DAY / NIGHT CONTROLLER
-============================================================ */
-
-async function updateDayNightMode(){
-
-  const shouldDay =
-    shouldBeDayMode();
-
-
-  /*
-     Currently NIGHT,
-     but it is now operating time.
-  */
-
-  if(
-    shouldDay &&
-    !currentDayMode &&
-    !systemStarting
-  ){
-
-    await enterDayMode();
-
-    return;
-
-  }
-
-
-  /*
-     Currently DAY,
-     but operating hours have ended.
-  */
-
-  if(
-    !shouldDay &&
-    currentDayMode &&
-    !systemStarting
-  ){
-
-    await enterNightMode();
-
-    return;
-
-  }
-
-}
-
-
-/*
-   Check every 10 seconds.
-
-   This is very lightweight.
-
-   During night mode this is essentially the
-   only timer doing meaningful work.
-*/
-
-setInterval(
-  updateDayNightMode,
-  10000
-);
-
-
-/* ============================================================
-   CAMERA
-============================================================ */
-
-async function initCamera(){
-
-  /*
-     If an old stream exists,
-     release it first.
-  */
-
-  stopCamera();
-
-
-  const stream =
-    await navigator.mediaDevices.getUserMedia({
-
-      video:{
-
-        width:{
-          ideal:CAMERA_WIDTH
-        },
-
-        height:{
-          ideal:CAMERA_HEIGHT
-        },
-
-        facingMode:"user"
-
-      },
-
-      audio:false
-
-    });
-
-
-  /*
-     Make sure the system is still supposed
-     to be running.
-  */
-
-  if(!shouldBeDayMode()){
-
-    stream
-      .getTracks()
-      .forEach(track => track.stop());
-
-    throw new Error(
-      "Operating hours ended while camera was starting."
-    );
-
-  }
-
-
-  video.srcObject =
-    stream;
-
-
-  return new Promise(
-    (resolve,reject)=>{
-
-      video.onloadedmetadata = ()=>{
-
-        resolve();
-
-      };
-
-      video.onerror = error => {
-
-        reject(error);
-
-      };
-
-    }
-  );
-
-}
-
-/* ============================================================
-   CCTV WEBRTC PUBLISHER
-============================================================ */
-
-function startCCTV(){
-
-  /*
-     CCTV only works during DAY MODE.
-  */
-
-  if(!currentDayMode){
-
-    console.log(
-      "CCTV not started: NIGHT MODE"
-    );
-
-    return;
-
-  }
-
-
-  /*
-     Camera must already be running.
-  */
-
-  if(!video.srcObject){
-
-    console.warn(
-      "CCTV cannot start: camera unavailable."
-    );
-
-    return;
-
-  }
-
-
-  /*
-     Don't create duplicate connections.
-  */
-
-  if(cctvSocket){
-
-    console.log(
-      "CCTV signaling already connected."
-    );
-
-    return;
-
-  }
-
-
-  console.log(
-    "Starting PRIMA CCTV..."
-  );
-
-
-  cctvSocket =
-    new WebSocket(
-      CCTV_WS_URL
-    );
-
-
-  /* ========================================================
-     CONNECTED
-  ======================================================== */
-
-  cctvSocket.onopen = () => {
-
-    console.log(
-      "CCTV signaling connected."
-    );
-
-
-    /*
-       Tell the server:
-
-       This Chromebook is the CAMERA
-       publisher.
-    */
-
-    cctvSocket.send(
-
-      JSON.stringify({
-
-        type:
-          "publisher"
-
-      })
-
-    );
-
-  };
-
-
-  /* ========================================================
-     MESSAGE
-  ======================================================== */
-
-  cctvSocket.onmessage =
-    async event => {
-
-      try{
-
-        const message =
-          JSON.parse(
-            event.data
-          );
-
-
-        /*
-           A viewer has opened cctv.html.
-        */
-
-        if(
-          message.type ===
-          "viewer-ready"
-        ){
-
-          console.log(
-            "CCTV viewer connected."
-          );
-
-
-          await createCCTVOffer();
-
-        }
-
-
-        /*
-           Viewer answered our offer.
-        */
-
-        else if(
-          message.type ===
-          "answer"
-        ){
-
-          if(!cctvPeer){
-
-            return;
-
-          }
-
-
-          await cctvPeer.setRemoteDescription(
-
-            new RTCSessionDescription(
-              message.answer
-            )
-
-          );
-
-
-          console.log(
-            "CCTV remote description set."
-          );
-
-        }
-
-
-        /*
-           ICE candidate from viewer.
-        */
-
-        else if(
-          message.type ===
-          "candidate"
-        ){
-
-          if(
-            cctvPeer &&
-            message.candidate
-          ){
-
-            try{
-
-              await cctvPeer.addIceCandidate(
-
-                new RTCIceCandidate(
-                  message.candidate
-                )
-
-              );
-
-            }catch(error){
-
-              console.error(
-                "CCTV ICE candidate error:",
-                error
-              );
-
-            }
-
-          }
-
-        }
-
-      }catch(error){
-
-        console.error(
-          "CCTV message error:",
-          error
-        );
-
-      }
-
-    };
-
-
-  /* ========================================================
-     ERROR
-  ======================================================== */
-
-  cctvSocket.onerror =
-    error => {
-
-      console.error(
-        "CCTV signaling error:",
-        error
-      );
-
-    };
-
-
-  /* ========================================================
-     CLOSED
-  ======================================================== */
-
-  cctvSocket.onclose =
-    () => {
-
-      console.log(
-        "CCTV signaling disconnected."
-      );
-
-
-      cctvSocket =
-        null;
-
-
-      cctvActive =
-        false;
-
-
-      if(cctvPeer){
-
-        try{
-
-          cctvPeer.close();
-
-        }catch(error){
-
-          console.error(
-            error
-          );
-
-        }
-
-        cctvPeer =
-          null;
-
-      }
-
-    };
-
-}
-
-
-/* ============================================================
-   CREATE CCTV WEBRTC OFFER
-============================================================ */
-
-async function createCCTVOffer(){
-
-  /*
-     Don't create CCTV if
-     Night Mode has started.
-  */
-
-  if(!currentDayMode){
-
-    return;
-
-  }
-
-
-  if(!video.srcObject){
-
-    return;
-
-  }
-
-
-  /*
-     Close previous peer connection.
-  */
-
-  if(cctvPeer){
-
-    try{
-
-      cctvPeer.close();
-
-    }catch(error){
-
-      console.error(
-        error
-      );
-
-    }
-
-  }
-
-
-  /*
-     Create WebRTC connection.
-  */
-
-  cctvPeer =
-    new RTCPeerConnection({
-
-      iceServers:[
-        {
-          urls:
-            "stun:stun.l.google.com:19302"
-        }
-      ]
-
-    });
-
-
-  /*
-     IMPORTANT:
-
-     Reuse the EXISTING PRIMA camera.
-
-     We are NOT calling getUserMedia()
-     again.
-  */
-
-  video.srcObject
-    .getTracks()
-    .forEach(track => {
-
-      cctvPeer.addTrack(
-
-        track,
-
-        video.srcObject
-
-      );
-
-    });
-
-
-  /*
-     Send ICE candidates
-     to Cloudflare signaling server.
-  */
-
-  cctvPeer.onicecandidate =
-    event => {
-
-      if(
-        event.candidate &&
-        cctvSocket &&
-        cctvSocket.readyState ===
-          WebSocket.OPEN
-      ){
-
-        cctvSocket.send(
-
-          JSON.stringify({
-
-            type:
-              "candidate",
-
-            candidate:
-              event.candidate
-
-          })
-
-        );
-
-      }
-
-    };
-
-
-  /*
-     Connection state.
-  */
-
-  cctvPeer.onconnectionstatechange =
-    () => {
-
-      console.log(
-        "CCTV connection:",
-        cctvPeer.connectionState
-      );
-
-
-      if(
-        cctvPeer.connectionState ===
-        "connected"
-      ){
-
-        cctvActive =
-          true;
-
-      }
-
-
-      if(
-        cctvPeer.connectionState ===
-          "failed" ||
-        cctvPeer.connectionState ===
-          "disconnected" ||
-        cctvPeer.connectionState ===
-          "closed"
-      ){
-
-        cctvActive =
-          false;
-
-      }
-
-    };
-
-
-  /*
-     Create WebRTC offer.
-  */
-
-  const offer =
-    await cctvPeer.createOffer();
-
-
-  await cctvPeer.setLocalDescription(
-    offer
-  );
-
-
-  /*
-     Send offer to viewer.
-  */
-
-  if(
-    cctvSocket &&
-    cctvSocket.readyState ===
-      WebSocket.OPEN
-  ){
-
-    cctvSocket.send(
-
-      JSON.stringify({
-
-        type:
-          "offer",
-
-        offer:
-          cctvPeer.localDescription
-
-      })
-
-    );
-
-  }
-
-}
-
-
-/* ============================================================
-   STOP CCTV
-============================================================ */
-
-function stopCCTV(){
-
-  console.log(
-    "Stopping PRIMA CCTV..."
-  );
-
-  /*
-     Close WebRTC.
-  */
-
-  if(cctvPeer){
-    try{
-      cctvPeer.close();
-    }catch(error){
-      console.error(
-        error
-      );
-    }
-
-    cctvPeer =
-      null;
-  }
-
-
-  /*
-     Close signaling.
-  */
-
-  if(cctvSocket){
-    try{
-      cctvSocket.close();
-    }catch(error){
-      console.error(
-        error
-      );
-    }
-    cctvSocket =
-      null;
-  }
-  cctvActive =
-    false;
-}
-/* ============================================================
-   ANNOUNCEMENT
-============================================================ */
-
-async function playGeneralAnnouncement(){
-
-  /*
-     NEVER run announcement in night mode.
-  */
-
-  if(!currentDayMode){
-
-    return;
-
-  }
-
-
-  if(announcementActive){
-
-    return;
-
-  }
-
-
-  announcementActive = true;
-
-
-  console.log(
-    "GENERAL ANNOUNCEMENT STARTED"
-  );
-
-
-  /*
-     Stop welcome audio.
-  */
-
-  audio.pause();
-
-  audio.currentTime = 0;
-
-
-  welcomeScreen.classList.remove(
-    "show"
-  );
-
-  showingWelcome = false;
-
-  triggered = false;
-
-
-  scanArrow.classList.add(
-    "announcementHidden"
-  );
-
-
-  announcementImage.src =
-    NASIHAT_IMAGE;
-
-
-  announcementScreen.classList.add(
-    "show"
-  );
-
-
-  statusBox.textContent =
-    "📢 Pengumuman";
-
-
-  announcementBell.src =
-    BELL_URL;
-
-  announcementBell.currentTime =
-    0;
-
-
-  try{
-
-    await announcementBell.play();
-
-    await waitForAudioEnd(
-      announcementBell
-    );
-
-  }catch(error){
-
-    console.error(
-      "Bell playback failed:",
-      error
-    );
-
-  }
-
-
-  /*
-     If night mode started during
-     the bell, stop immediately.
-  */
-
-  if(!currentDayMode){
-
-    announcementActive = false;
-
-    return;
-
-  }
-
-
-  announcementAudio.src =
-    NASIHAT_AUDIO;
-
-  announcementAudio.currentTime =
-    0;
-
-
-  try{
-
-    await announcementAudio.play();
-
-    await waitForAudioEnd(
-      announcementAudio
-    );
-
-  }catch(error){
-
-    console.error(
-      "Nasihat playback failed:",
-      error
-    );
-
-  }
-
-
-  announcementScreen.classList.remove(
-    "show"
-  );
-
-
-  scanArrow.classList.remove(
-    "announcementHidden"
-  );
-
-
-  announcementActive = false;
-
-
-  statusBox.textContent =
-    recordingActive
-      ? "🔴 Recording"
-      : "Ready for next visitor";
-
-
-  console.log(
-    "GENERAL ANNOUNCEMENT FINISHED"
-  );
-
-}
-
-
-function waitForAudioEnd(
-  audioElement
-){
-
-  return new Promise(resolve => {
-
-    const finished = () => {
-
-      audioElement.removeEventListener(
-        "ended",
-        finished
-      );
-
-      resolve();
-
-    };
-
-    audioElement.addEventListener(
-      "ended",
-      finished
-    );
-
-  });
-
-}
-
-
-/* ============================================================
-   ANNOUNCEMENT SCHEDULER
-============================================================ */
-
-function announcementScheduler(){
-
-  /*
-     Don't even process announcements
-     during night mode.
-  */
-
-  if(!currentDayMode){
-
-    return;
-
-  }
-
-
-  if(announcementActive){
-
-    return;
-
-  }
-
-
-  const now =
-    new Date();
-
-
-  const hours =
-    String(
-      now.getHours()
-    ).padStart(2,"0");
-
-
-  const minutes =
-    String(
-      now.getMinutes()
-    ).padStart(2,"0");
-
-
-  const currentTime =
-    hours + ":" + minutes;
-
-
-  if(
-    ANNOUNCEMENT_TIMES.includes(
-      currentTime
-    )
-  ){
-
-    const announcementKey =
-      formatDate(now) +
-      "_" +
-      currentTime;
-
-
-    if(
-      announcementKey !==
-      lastAnnouncementKey
-    ){
-
-      lastAnnouncementKey =
-        announcementKey;
-
-
-      playGeneralAnnouncement();
-
-    }
-
-  }
-
-}
-
-
-setInterval(
-  announcementScheduler,
-  1000
-);
-
-
-/* ============================================================
-   AI INITIALIZATION
-============================================================ */
-
-async function initAI(){
-
-  const vision =
-    await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-    );
-
-
-  /*
-     Check operating time before creating
-     the AI detector.
-  */
-
-  if(!shouldBeDayMode()){
-
-    throw new Error(
-      "AI initialization attempted outside operating hours."
-    );
-
-  }
-
-
-  detector =
-    await FaceDetector.createFromOptions(
-
-      vision,
-
-      {
-
-        baseOptions:{
-
-          modelAssetPath:
-            "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
-
-        },
-
-        runningMode:"VIDEO",
-
-        minDetectionConfidence:0.6
-
-      }
-
-    );
-
-}
-
-
-/* ============================================================
-   CLOCK
-============================================================ */
-
-function updateClock(){
-
-  /*
-     Don't update DOM unnecessarily
-     during night mode.
-  */
-
-  if(!currentDayMode){
-
-    return;
-
-  }
-
-
-  const now =
-    new Date();
-
-
-  const time =
-    now.toLocaleTimeString(
-      "en-GB"
-    );
-
-
-  const date =
-    now.toLocaleDateString(
-      "en-GB",
-      {
-
-        weekday:"long",
-
-        day:"2-digit",
-
-        month:"long",
-
-        year:"numeric"
-
-      }
-    );
-
-
-  document.getElementById("clock")
-    .textContent = time;
-
-
-  document.getElementById("date")
-    .textContent = date;
-
-}
-
-
-/*
-   Clock can remain every second.
-   It is not running camera/AI.
-*/
-
-setInterval(
-  updateClock,
-  1000
-);
 /* ============================================================
    RECORDING TIME
 ============================================================ */
@@ -2341,6 +824,7 @@ function isRecordingTime(){
   const now =
     new Date();
 
+
   const currentMinutes =
     now.getHours() * 60 +
     now.getMinutes();
@@ -2353,12 +837,19 @@ function isRecordingTime(){
   return RECORDING_WINDOWS.some(
     window => {
 
-      const [startHour,startMinute] =
+      const [
+        startHour,
+        startMinute
+      ] =
         window.start
           .split(":")
           .map(Number);
 
-      const [endHour,endMinute] =
+
+      const [
+        endHour,
+        endMinute
+      ] =
         window.end
           .split(":")
           .map(Number);
@@ -2400,11 +891,21 @@ function pad(number){
 function formatDate(date){
 
   return (
+
     date.getFullYear() +
+
     "-" +
-    pad(date.getMonth()+1) +
+
+    pad(
+      date.getMonth() + 1
+    ) +
+
     "-" +
-    pad(date.getDate())
+
+    pad(
+      date.getDate()
+    )
+
   );
 
 }
@@ -2413,11 +914,23 @@ function formatDate(date){
 function formatTime(date){
 
   return (
-    pad(date.getHours()) +
+
+    pad(
+      date.getHours()
+    ) +
+
     ":" +
-    pad(date.getMinutes()) +
+
+    pad(
+      date.getMinutes()
+    ) +
+
     ":" +
-    pad(date.getSeconds())
+
+    pad(
+      date.getSeconds()
+    )
+
   );
 
 }
@@ -2437,16 +950,31 @@ function createRecordingFilename(
 
 
   const start =
-    pad(startDate.getHours()) +
-    pad(startDate.getMinutes());
+    pad(
+      startDate.getHours()
+    ) +
+    pad(
+      startDate.getMinutes()
+    ) +
+    pad(
+      startDate.getSeconds()
+    );
 
 
   const end =
-    pad(endDate.getHours()) +
-    pad(endDate.getMinutes());
+    pad(
+      endDate.getHours()
+    ) +
+    pad(
+      endDate.getMinutes()
+    ) +
+    pad(
+      endDate.getSeconds()
+    );
 
 
   return (
+
     "PRIMA_" +
     date +
     "_" +
@@ -2454,6 +982,7 @@ function createRecordingFilename(
     "-" +
     end +
     ".webm"
+
   );
 
 }
@@ -2496,6 +1025,8 @@ function getSupportedMimeType(){
   return "";
 
 }
+
+
 /* ============================================================
    CREATE TIMESTAMPED VIDEO STREAM
 ============================================================ */
@@ -2509,33 +1040,50 @@ function createTimestampedVideoStream(){
   if(!recordingCanvas){
 
     recordingCanvas =
-      document.createElement("canvas");
+      document.createElement(
+        "canvas"
+      );
+
 
     recordingCanvas.width =
       CAMERA_WIDTH;
 
+
     recordingCanvas.height =
       CAMERA_HEIGHT;
 
+
     recordingCanvasContext =
-      recordingCanvas.getContext("2d");
+      recordingCanvas.getContext(
+        "2d"
+      );
 
   }
 
 
   /*
-     Draw camera frame + timestamp.
+     IMPORTANT:
+
+     Canvas continues running while
+     recording segments are changed.
+
+     Therefore the camera/timestamp stream
+     itself does NOT stop between files.
   */
 
   function drawFrame(){
 
     /*
-       Stop drawing if recording has ended.
+       Canvas continues as long as
+       recording system is active.
     */
 
-    if(!recordingActive){
+    if(
+      !recordingActive
+    ){
 
-      timestampAnimationFrame = null;
+      timestampAnimationFrame =
+        null;
 
       return;
 
@@ -2547,16 +1095,26 @@ function createTimestampedVideoStream(){
 
 
     /*
-       Draw current camera frame.
+       Draw camera frame.
     */
 
-    ctx.drawImage(
-      video,
-      0,
-      0,
-      recordingCanvas.width,
-      recordingCanvas.height
-    );
+    if(
+      video.readyState >= 2
+    ){
+
+      ctx.drawImage(
+
+        video,
+
+        0,
+        0,
+
+        recordingCanvas.width,
+        recordingCanvas.height
+
+      );
+
+    }
 
 
     /* ========================================================
@@ -2568,38 +1126,43 @@ function createTimestampedVideoStream(){
 
 
     const timestamp =
-      String(now.getDate()).padStart(2,"0") +
+
+      String(
+        now.getDate()
+      ).padStart(2,"0") +
+
       "/" +
+
       String(
         now.getMonth() + 1
       ).padStart(2,"0") +
+
       "/" +
+
       now.getFullYear() +
+
       " " +
+
       String(
         now.getHours()
       ).padStart(2,"0") +
+
       ":" +
+
       String(
         now.getMinutes()
       ).padStart(2,"0") +
+
       ":" +
+
       String(
         now.getSeconds()
       ).padStart(2,"0");
 
 
-    /*
-       Timestamp font.
-    */
-
     ctx.font =
       "bold 18px Arial";
 
-
-    /*
-       Measure text.
-    */
 
     const textWidth =
       ctx.measureText(
@@ -2623,7 +1186,7 @@ function createTimestampedVideoStream(){
 
 
     /*
-       Semi-transparent black background.
+       Timestamp background.
     */
 
     ctx.fillStyle =
@@ -2645,7 +1208,7 @@ function createTimestampedVideoStream(){
 
 
     /*
-       White timestamp.
+       Timestamp text.
     */
 
     ctx.fillStyle =
@@ -2668,9 +1231,7 @@ function createTimestampedVideoStream(){
 
 
     /*
-       Continue drawing.
-
-       Approximately 30 FPS.
+       Continue approximately 30 FPS.
     */
 
     timestampAnimationFrame =
@@ -2682,32 +1243,52 @@ function createTimestampedVideoStream(){
 
 
   /*
-     Create canvas video stream.
+     Create canvas stream ONLY ONCE.
   */
 
-  recordingCanvasStream =
-    recordingCanvas.captureStream(30);
+  if(
+    !recordingCanvasStream
+  ){
+
+    recordingCanvasStream =
+      recordingCanvas.captureStream(
+        30
+      );
+
+  }
 
 
   /*
      Start drawing.
   */
 
-  timestampAnimationFrame =
-    requestAnimationFrame(
-      drawFrame
-    );
+  if(
+    !timestampAnimationFrame
+  ){
+
+    timestampAnimationFrame =
+      requestAnimationFrame(
+        drawFrame
+      );
+
+  }
 
 
   return recordingCanvasStream;
 
 }
 
+
 /* ============================================================
    START RECORDING
 ============================================================ */
 
 function startRecording(){
+
+  /*
+     Don't start another recorder
+     if one is already recording.
+  */
 
   if(
     recordingActive
@@ -2719,15 +1300,21 @@ function startRecording(){
 
 
   /*
-     Never record at night.
+     Never record during night mode.
   */
 
-  if(!currentDayMode){
+  if(
+    !currentDayMode
+  ){
 
     return;
 
   }
 
+
+  /*
+     Camera must exist.
+  */
 
   if(
     !video.srcObject
@@ -2742,6 +1329,10 @@ function startRecording(){
   }
 
 
+  /*
+     Must be inside recording window.
+  */
+
   if(
     !isRecordingTime()
   ){
@@ -2749,8 +1340,10 @@ function startRecording(){
     return;
 
   }
- /*
-     Make sure camera is ready.
+
+
+  /*
+     Camera must be ready.
   */
 
   if(
@@ -2765,8 +1358,21 @@ function startRecording(){
 
   }
 
+
   const mimeType =
     getSupportedMimeType();
+
+
+  /*
+     IMPORTANT:
+
+     We do NOT create a new camera stream.
+
+     We reuse the timestamp canvas stream.
+  */
+
+  const timestampStream =
+    createTimestampedVideoStream();
 
 
   recordingChunks = [];
@@ -2775,46 +1381,35 @@ function startRecording(){
   recordingStartTime =
     new Date();
 
-  recordingActive = true;
-   /*
-     Create:
-
-     CAMERA
-        ↓
-     CANVAS
-        ↓
-     TIMESTAMP
-        ↓
-     MEDIARECORDER
-  */
-
-  const timestampStream =
-    createTimestampedVideoStream();
-
 
   try{
 
     mediaRecorder =
+
       mimeType
 
       ?
 
       new MediaRecorder(
+
         timestampStream,
+
         {
 
-          mimeType:mimeType,
+          mimeType:
+            mimeType,
 
           videoBitsPerSecond:
             VIDEO_BITRATE
 
         }
+
       )
 
       :
 
       new MediaRecorder(
-        timestampStream,
+        timestampStream
       );
 
 
@@ -2824,14 +1419,11 @@ function startRecording(){
       "MediaRecorder failed:",
       error
     );
-    recordingActive = false;
 
 
-    /*
-       Stop timestamp canvas stream.
-    */
+    recordingActive =
+      false;
 
-    stopTimestampVideoStream();
 
     statusBox.textContent =
       "Recording unavailable";
@@ -2841,6 +1433,10 @@ function startRecording(){
 
   }
 
+
+  /*
+     DATA AVAILABLE
+  */
 
   mediaRecorder.ondataavailable =
     event => {
@@ -2859,13 +1455,26 @@ function startRecording(){
     };
 
 
-  mediaRecorder.onstop =
-    async () => {
+  /*
+     RECORDING STOPPED
+  */
 
-      await finishRecording();
+  mediaRecorder.onstop =
+    () => {
+
+      /*
+         finishRecording() is deliberately
+         NOT blocking the next segment.
+      */
+
+      finishRecording();
 
     };
 
+
+  /*
+     RECORDER ERROR
+  */
 
   mediaRecorder.onerror =
     event => {
@@ -2875,101 +1484,43 @@ function startRecording(){
         event
       );
 
-      recordingActive = false;
+
+      recordingActive =
+        false;
 
     };
 
 
+  /*
+     ==========================================================
+     START MEDIARECORDER — ONLY ONCE
+     ==========================================================
+  */
+
   mediaRecorder.start();
 
-  recordingActive = true;
+
+  recordingActive =
+    true;
 
 
   statusBox.textContent =
-    "🔴 Recording :Timestamp ON ";
+    "🔴 Recording : Timestamp ON";
 
 
   console.log(
     "Recording started:",
-    formatTime(recordingStartTime)
+    formatTime(
+      recordingStartTime
+    )
   );
 
 
   /*
-     Stop this recording after
-     RECORDING_INTERVAL_MS.
+     ==========================================================
+     2-MINUTE SEGMENT TIMER
+     ==========================================================
   */
-
-  mediaRecorder.start(
-  RECORDING_INTERVAL_MS
-);
-
-}
-/* ============================================================
-   STOP TIMESTAMP VIDEO STREAM
-============================================================ */
-
-function stopTimestampVideoStream(){
-
-  /*
-     Stop canvas animation.
-  */
-
-  if(
-    timestampAnimationFrame
-  ){
-
-    cancelAnimationFrame(
-      timestampAnimationFrame
-    );
-
-    timestampAnimationFrame =
-      null;
-
-  }
-
-
-  /*
-     Stop canvas MediaStream tracks.
-
-     IMPORTANT:
-
-     This does NOT stop the camera.
-
-     It only stops the temporary
-     recording canvas stream.
-  */
-
-  if(
-    recordingCanvasStream
-  ){
-
-    recordingCanvasStream
-      .getTracks()
-      .forEach(track => {
-
-        try{
-
-          track.stop();
-
-        }catch(error){
-          console.error(
-            "Canvas track stop error:",
-            error
-          );
-        }
-      });
-
-    recordingCanvasStream =
-      null;
-  }
-}
-
-/* ============================================================
-   STOP RECORDING
-============================================================ */
-
-function stopRecording(){
 
   if(recordingTimer){
 
@@ -2977,22 +1528,146 @@ function stopRecording(){
       recordingTimer
     );
 
-    recordingTimer = null;
+  }
+
+
+  recordingTimer =
+    setTimeout(
+
+      () => {
+
+        /*
+           Only stop if this exact recorder
+           is still active.
+        */
+
+        if(
+          mediaRecorder &&
+          mediaRecorder.state ===
+            "recording"
+        ){
+
+          console.log(
+            "2-minute segment reached."
+          );
+
+
+          mediaRecorder.stop();
+
+        }
+
+      },
+
+      RECORDING_INTERVAL_MS
+
+    );
+
+}
+
+
+/* ============================================================
+   STOP RECORDING
+============================================================ */
+
+function stopRecording(){
+
+  /*
+     Cancel segment timer.
+  */
+
+  if(
+    recordingTimer
+  ){
+
+    clearTimeout(
+      recordingTimer
+    );
+
+    recordingTimer =
+      null;
 
   }
 
 
-  if(!mediaRecorder){
-    stopTimestampVideoStream();
+  /*
+     Nothing to stop.
+  */
+
+  if(
+    !mediaRecorder
+  ){
+
     return;
+
   }
+
+
+  /*
+     Stop current recorder.
+  */
 
   if(
     mediaRecorder.state ===
-    "recording"
+      "recording"
   ){
+
+    console.log(
+      "Stopping current recording segment..."
+    );
+
+
     mediaRecorder.stop();
+
   }
+
+}
+
+
+/* ============================================================
+   FORCE STOP RECORDING
+============================================================ */
+
+function forceStopRecording(){
+
+  if(
+    recordingTimer
+  ){
+
+    clearTimeout(
+      recordingTimer
+    );
+
+    recordingTimer =
+      null;
+
+  }
+
+
+  if(
+    mediaRecorder &&
+    mediaRecorder.state ===
+      "recording"
+  ){
+
+    try{
+
+      mediaRecorder.stop();
+
+    }catch(error){
+
+      console.error(
+        "Recorder stop error:",
+        error
+      );
+
+    }
+
+  }
+
+
+  recordingActive =
+    false;
+
 }
 
 
@@ -3001,6 +1676,10 @@ function stopRecording(){
 ============================================================ */
 
 async function finishRecording(){
+
+  /*
+     Capture the end time immediately.
+  */
 
   const endDate =
     new Date();
@@ -3021,10 +1700,28 @@ async function finishRecording(){
     );
 
 
-  recordingActive = false;
-stopTimestampVideoStream();
+  /*
+     IMPORTANT:
+
+     Copy the chunks immediately.
+
+     This allows the next recording segment
+     to use a completely new array.
+  */
+
+  const chunks =
+    recordingChunks.slice();
+
+
+  recordingChunks = [];
+
+
+  /*
+     Get MIME type.
+  */
 
   const mimeType =
+
     mediaRecorder &&
     mediaRecorder.mimeType
 
@@ -3037,21 +1734,37 @@ stopTimestampVideoStream();
     "video/webm";
 
 
+  /*
+     Create completed video blob.
+  */
+
   const blob =
     new Blob(
-      recordingChunks,
+
+      chunks,
+
       {
-        type:mimeType
+        type:
+          mimeType
       }
+
     );
 
 
-  recordingChunks = [];
+  console.log(
+    "================================="
+  );
 
 
   console.log(
     "Recording completed:",
     filename
+  );
+
+
+  console.log(
+    "Video duration target:",
+    "2 minutes"
   );
 
 
@@ -3066,22 +1779,52 @@ stopTimestampVideoStream();
   );
 
 
-  /*
-     Upload.
-  */
-
-  await uploadRecording(
-    blob,
-    filename
+  console.log(
+    "================================="
   );
 
 
   /*
-     IMPORTANT:
+     ==========================================================
+     IMPORTANT
+     ==========================================================
 
-     If night mode started while
-     uploading, DO NOT start another
-     recording.
+     Upload WITHOUT BLOCKING the next recording.
+
+     We deliberately do NOT use:
+
+       await uploadRecording()
+
+     here.
+
+     The upload runs independently.
+  */
+
+  uploadRecording(
+    blob,
+    filename
+  ).catch(
+    error => {
+
+      console.error(
+        "Background upload error:",
+        error
+      );
+
+    }
+  );
+
+
+  /*
+     ==========================================================
+     START NEXT SEGMENT IMMEDIATELY
+     ==========================================================
+  */
+
+  /*
+     Give MediaRecorder's stop event a moment
+     to finish completely before creating
+     the next recorder.
   */
 
   if(
@@ -3090,11 +1833,40 @@ stopTimestampVideoStream();
   ){
 
     setTimeout(
-      startRecording,
-      1000
+
+      () => {
+
+        /*
+           Do not start if another recorder
+           somehow already started.
+        */
+
+        if(
+          !recordingActive &&
+          currentDayMode &&
+          isRecordingTime()
+        ){
+
+          console.log(
+            "Starting next 2-minute segment..."
+          );
+
+
+          startRecording();
+
+        }
+
+      },
+
+      50
+
     );
 
   }else{
+
+    recordingActive =
+      false;
+
 
     statusBox.textContent =
       currentDayMode
@@ -3103,7 +1875,7 @@ stopTimestampVideoStream();
 
 
     console.log(
-      "Recording completed."
+      "Recording window ended."
     );
 
   }
@@ -3120,27 +1892,35 @@ async function uploadRecording(
   filename
 ){
 
-  if(!UPLOAD_URL){
+  if(
+    !UPLOAD_URL
+  ){
 
     console.warn(
       "Google Apps Script upload URL has not been configured."
     );
-
-
-    statusBox.textContent =
-      "Video saved locally — upload URL not configured";
-
 
     return;
 
   }
 
 
-  uploadInProgress = true;
+  /*
+     Upload is running independently.
+
+     This flag is informational only.
+
+     It MUST NOT prevent the next recording.
+  */
+
+  uploadInProgress =
+    true;
 
 
-  statusBox.textContent =
-    "Uploading " + filename;
+  console.log(
+    "Uploading:",
+    filename
+  );
 
 
   try{
@@ -3153,23 +1933,28 @@ async function uploadRecording(
 
     const payload = {
 
-      filename:filename,
+      filename:
+        filename,
 
       mimeType:
         blob.type ||
         "video/webm",
 
-      data:base64
+      data:
+        base64
 
     };
 
 
     const response =
       await fetch(
+
         UPLOAD_URL,
+
         {
 
-          method:"POST",
+          method:
+            "POST",
 
           headers:{
 
@@ -3184,6 +1969,7 @@ async function uploadRecording(
             )
 
         }
+
       );
 
 
@@ -3197,15 +1983,14 @@ async function uploadRecording(
     );
 
 
-    /*
-       Don't display upload status
-       over night mode.
-    */
-
-    if(currentDayMode){
+    if(
+      currentDayMode
+    ){
 
       statusBox.textContent =
-        "Uploaded: " + filename;
+        recordingActive
+          ? "🔴 Recording"
+          : "Uploaded: " + filename;
 
     }
 
@@ -3214,21 +1999,27 @@ async function uploadRecording(
 
     console.error(
       "Upload failed:",
+      filename,
       error
     );
 
 
-    if(currentDayMode){
+    if(
+      currentDayMode
+    ){
 
       statusBox.textContent =
-        "Upload failed: " + filename;
+        recordingActive
+          ? "🔴 Recording • Upload failed"
+          : "Upload failed: " + filename;
 
     }
 
   }
 
 
-  uploadInProgress = false;
+  uploadInProgress =
+    false;
 
 }
 
@@ -3237,10 +2028,16 @@ async function uploadRecording(
    BLOB → BASE64
 ============================================================ */
 
-function blobToBase64(blob){
+function blobToBase64(
+  blob
+){
 
   return new Promise(
-    (resolve,reject)=>{
+
+    (
+      resolve,
+      reject
+    ) => {
 
       const reader =
         new FileReader();
@@ -3257,7 +2054,9 @@ function blobToBase64(blob){
             result.split(",")[1];
 
 
-          resolve(base64);
+          resolve(
+            base64
+          );
 
         };
 
@@ -3271,6 +2070,7 @@ function blobToBase64(blob){
       );
 
     }
+
   );
 
 }
@@ -3286,7 +2086,9 @@ function recordingScheduler(){
      No recording processing at night.
   */
 
-  if(!currentDayMode){
+  if(
+    !currentDayMode
+  ){
 
     return;
 
@@ -3294,14 +2096,13 @@ function recordingScheduler(){
 
 
   /*
-     Start recording during
-     07:20–08:00.
+     Start recording if we are
+     inside a recording window.
   */
 
   if(
     isRecordingTime() &&
-    !recordingActive &&
-    !uploadInProgress
+    !recordingActive
   ){
 
     startRecording();
@@ -3310,8 +2111,12 @@ function recordingScheduler(){
 
 
   /*
-     Make absolutely sure recording
-     stops after 08:00.
+     Stop recording when the
+     recording window ends.
+
+     IMPORTANT:
+
+     We don't wait for upload.
   */
 
   if(
@@ -3327,9 +2132,7 @@ function recordingScheduler(){
 
 
 /*
-   Every second during the day.
-
-   At night this immediately returns.
+   Run scheduler every second.
 */
 
 setInterval(
