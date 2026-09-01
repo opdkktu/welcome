@@ -2121,6 +2121,46 @@ ENTER NIGHT MODE
     return new Promise(resolve => { 
       const finished = () => { audioElement.removeEventListener( "ended", finished ); resolve(); }; 
       audioElement.addEventListener( "ended", finished ); }); }
+/* ============================================================ 
+ANNOUNCEMENT SCHEDULER
+============================================================ */ 
+  function announcementScheduler(){ 
+    /* Don't even process announcements during night mode. */ 
+    if(!currentDayMode){ return; } if(announcementActive){ return; } 
+    const now = new Date(); const hours = String( now.getHours() ).padStart(2,"0");
+    const minutes = String( now.getMinutes() ).padStart(2,"0");
+    const currentTime = hours + ":" + minutes; if( 
+      ANNOUNCEMENT_TIMES.includes( currentTime ) 
+    ){
+      const announcementKey = formatDate(now) + "_" + currentTime;
+      if( announcementKey !== lastAnnouncementKey ){ lastAnnouncementKey = announcementKey; playGeneralAnnouncement(); } } } 
+  setInterval( announcementScheduler, 1000 ); 
+  /* ============================================================
+  AI INITIALIZATION 
+  ============================================================ */
+  async function initAI(){
+    const vision = await FilesetResolver.forVisionTasks( "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm" );
+    /* Check operating time before creating the AI detector. */ 
+    if(!shouldBeDayMode()){ throw new Error( "AI initialization attempted outside operating hours." ); }
+    detector = await FaceDetector.createFromOptions( vision, { 
+      baseOptions:{ modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite" }, 
+      runningMode:"VIDEO", minDetectionConfidence:0.6 } ); } 
+  /* ============================================================
+  CLOCK 
+  ============================================================ */ 
+  function updateClock(){ 
+    /* Don't update DOM unnecessarily during night mode. */ 
+    if(!currentDayMode){ return; }
+    const now = new Date();
+    const time = now.toLocaleTimeString( "en-GB" ); 
+    const date = now.toLocaleDateString( "en-GB", { 
+      weekday:"long", 
+      day:"2-digit", 
+      month:"long",
+      year:"numeric" } ); 
+    document.getElementById("clock") .textContent = time; document.getElementById("date") .textContent = date; }
+  /* Clock can remain every second. It is not running camera/AI. */ 
+  setInterval( updateClock, 1000 );
 /* ============================================================
    UPLOAD VIDEO
 ============================================================ */
