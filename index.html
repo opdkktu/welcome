@@ -1842,16 +1842,12 @@ async function finishRecording(){
     filename
   ).catch(
     error => {
-
       console.error(
         "Background upload error:",
         error
       );
-
     }
   );
-
-
   /*
      ==========================================================
      START NEXT SEGMENT IMMEDIATELY
@@ -1863,14 +1859,11 @@ async function finishRecording(){
      to finish completely before creating
      the next recorder.
   */
-
   if(
     currentDayMode &&
     isRecordingTime()
   ){
-
     setTimeout(
-
       () => {
 
         /*
@@ -1883,43 +1876,30 @@ async function finishRecording(){
           currentDayMode &&
           isRecordingTime()
         ){
-
           console.log(
             "Starting next 2-minute segment..."
           );
-
-
           startRecording();
-
         }
-
       },
-
       50
-
     );
-
   }else{
-
     recordingActive =
       false;
-
-
     statusBox.textContent =
       currentDayMode
         ? "Recording finished"
         : "Night mode";
-
-
     console.log(
       "Recording window ended."
     );
-
   }
-
 }
 
-/* ============================================================ ENTER NIGHT MODE ============================================================ */ 
+/* ============================================================ 
+ENTER NIGHT MODE 
+============================================================ */ 
   async function enterNightMode(){ if(!currentDayMode){ return; } 
                                   console.log( "=================================" ); 
                                   console.log( "PRIMA ENTERING NIGHT MODE" ); 
@@ -1960,7 +1940,9 @@ async function finishRecording(){
                                   /* Prevent accidental visitor trigger. */ 
                                   triggered = false; showingWelcome = false; 
                                   /* From this point onward, there is NO camera processing. */ }
-  /* ============================================================ ENTER DAY MODE ============================================================ */ 
+  /* ============================================================ 
+  ENTER DAY MODE 
+  ============================================================ */ 
   async function enterDayMode(){ if(currentDayMode){ return; } if(systemStarting){ return; } 
                                 console.log( "=================================" ); 
                                 console.log( "PRIMA ENTERING DAY MODE" ); 
@@ -1993,7 +1975,9 @@ async function finishRecording(){
                                                           }catch(error){ console.error( "DAY MODE START ERROR:", error ); 
                                                                         statusBox.textContent = "Camera permission required"; /* If camera/AI failed, don't leave the system half-active. */ 
                                                                         stopCCTV(); stopAI(); stopCamera(); currentDayMode = false; }finally{ systemStarting = false; } } 
-  /* ============================================================ DAY / NIGHT CONTROLLER ============================================================ */ 
+  /* ============================================================ 
+  DAY / NIGHT CONTROLLER
+  ============================================================ */ 
   async function updateDayNightMode(){ const shouldDay = shouldBeDayMode(); 
                                       /* Currently NIGHT, but it is now operating time. */ 
                                       if( shouldDay && !currentDayMode && !systemStarting ){ 
@@ -2003,6 +1987,140 @@ async function finishRecording(){
                                         await enterNightMode(); return; } } 
   /* Check every 10 seconds. This is very lightweight. During night mode this is essentially the only timer doing meaningful work. */ 
   setInterval( updateDayNightMode, 10000 );
+  /* ============================================================ 
+  CAMERA 
+  ============================================================ */ 
+  async function initCamera(){ 
+    /* If an old stream exists, release it first. */ 
+    stopCamera(); const stream = await navigator.mediaDevices.getUserMedia({ 
+      video:{ width:{ ideal:CAMERA_WIDTH }, 
+             height:{ ideal:CAMERA_HEIGHT }, 
+             facingMode:"user" }, 
+      audio:false }); 
+    /* Make sure the system is still supposed to be running. */ 
+    if(!shouldBeDayMode()){ stream .getTracks() .forEach(track => track.stop()); throw new Error( "Operating hours ended while camera was starting." ); 
+                          } video.srcObject = stream; return new Promise( (resolve,reject)=>{ 
+      video.onloadedmetadata = ()=>{ resolve(); }; video.onerror = error => { reject(error); }; } ); } 
+  /* ============================================================
+  CCTV WEBRTC PUBLISHER 
+  ============================================================ */ 
+  function startCCTV(){ 
+    /* CCTV only works during DAY MODE. */ 
+    if(!currentDayMode){ console.log( "CCTV not started: NIGHT MODE" );
+                        return; } 
+    /* Camera must already be running. */ 
+    if(!video.srcObject){ console.warn( "CCTV cannot start: camera unavailable." ); return; } 
+      /* Don't create duplicate connections. */ 
+    if(cctvSocket){ console.log( "CCTV signaling already connected." );
+                   return; } console.log( "Starting PRIMA CCTV..." ); 
+    cctvSocket = new WebSocket( CCTV_WS_URL ); 
+    /* ========================================================
+    CONNECTED
+    ======================================================== */ 
+    cctvSocket.onopen = () => { console.log( "CCTV signaling connected." ); 
+                               /* Tell the server: This Chromebook is the CAMERA publisher. */ 
+                               cctvSocket.send( JSON.stringify({ type: "publisher" }) ); }; 
+    /* ========================================================
+    MESSAGE
+    ======================================================== */ 
+    cctvSocket.onmessage = async event => { try{ 
+      const message = JSON.parse( event.data ); 
+      /* A viewer has opened cctv.html. */ 
+      if( message.type === "viewer-ready" ){ 
+        console.log( "CCTV viewer connected." ); 
+        await createCCTVOffer(); } 
+        /* Viewer answered our offer. */ 
+      else if( message.type === "answer" ){
+        if(!cctvPeer){ return; } await cctvPeer.setRemoteDescription( new RTCSessionDescription( message.answer ) ); 
+        console.log( "CCTV remote description set." ); } 
+        /* ICE candidate from viewer. */ 
+      else if( message.type === "candidate" ){
+        if( cctvPeer && message.candidate ){ 
+          try{ await cctvPeer.addIceCandidate( 
+            new RTCIceCandidate( message.candidate ) ); 
+             }catch(error){ console.error( "CCTV ICE candidate error:", error );
+                          } } } }catch(error){ console.error( "CCTV message error:", error ); } }; 
+    /* ========================================================
+    ERROR
+    ======================================================== */
+    cctvSocket.onerror = error => { 
+      console.error( "CCTV signaling error:", error ); }; 
+    /* ========================================================
+    CLOSED
+    ======================================================== */
+    cctvSocket.onclose = () => { console.log( "CCTV signaling disconnected." );
+                                cctvSocket = null; 
+                                cctvActive = false; 
+                                if(cctvPeer){ try{ cctvPeer.close(); }catch(error){ 
+                                  console.error( error ); } cctvPeer = null; } }; } 
+  /* ============================================================
+  CREATE CCTV WEBRTC OFFER 
+  ============================================================ */ 
+  
+  async function createCCTVOffer(){ /* Don't create CCTV if Night Mode has started. */
+    if(!currentDayMode){ return; } if(!video.srcObject){ return; }
+    /* Close previous peer connection. */ if(cctvPeer){ try{
+      cctvPeer.close(); }catch(error){ console.error( error ); } }
+      /* Create WebRTC connection. */ 
+    cctvPeer = new RTCPeerConnection({
+      iceServers:[ { urls: "stun:stun.l.google.com:19302" } ] });
+    /* IMPORTANT: Reuse the EXISTING PRIMA camera. We are NOT calling getUserMedia() again. */ 
+    video.srcObject .getTracks() .forEach(track => { cctvPeer.addTrack( track, video.srcObject ); });
+    /* Send ICE candidates to Cloudflare signaling server. */ 
+    cctvPeer.onicecandidate = event => { if( 
+      event.candidate && cctvSocket && cctvSocket.readyState === WebSocket.OPEN ){ 
+      cctvSocket.send( JSON.stringify({ type: "candidate", candidate: event.candidate }) ); } }; 
+    /* Connection state. */ cctvPeer.onconnectionstatechange = () => { 
+      console.log( "CCTV connection:", cctvPeer.connectionState );
+      if( cctvPeer.connectionState === "connected" ){ cctvActive = true; } if( cctvPeer.connectionState === "failed" || cctvPeer.connectionState === "disconnected" || cctvPeer.connectionState === "closed" ){ cctvActive = false; } 
+    };
+    /* Create WebRTC offer. */ 
+    const offer =
+      await cctvPeer.createOffer(); 
+    await cctvPeer.setLocalDescription( offer ); 
+    /* Send offer to viewer. */ if( 
+      cctvSocket && cctvSocket.readyState === WebSocket.OPEN )
+    { cctvSocket.send( JSON.stringify({ type: "offer", offer: cctvPeer.localDescription }) ); } }
+  /* ============================================================ 
+  STOP CCTV
+  ============================================================ */
+  function stopCCTV(){ console.log( "Stopping PRIMA CCTV..." ); /* Close WebRTC. */
+                    if(cctvPeer){ try{ cctvPeer.close(); }catch(error){ 
+                      console.error( error ); } cctvPeer = null; } 
+                      /* Close signaling. */ if(cctvSocket){ try{ 
+                        cctvSocket.close(); }catch(error){ console.error( error );
+                                                         } cctvSocket = null; } cctvActive = false; } 
+  /* ============================================================
+  ANNOUNCEMENT
+  ============================================================ */ 
+  async function playGeneralAnnouncement(){ 
+    /* NEVER run announcement in night mode. */ 
+    if(!currentDayMode){ return; } 
+    if(announcementActive){ return; }
+    announcementActive = true; console.log( "GENERAL ANNOUNCEMENT STARTED" ); 
+    /* Stop welcome audio. */ 
+    audio.pause(); audio.currentTime = 0;
+    welcomeScreen.classList.remove( "show" ); 
+    showingWelcome = false; triggered = false;
+    scanArrow.classList.add( "announcementHidden" );
+    announcementImage.src = NASIHAT_IMAGE;
+    announcementScreen.classList.add( "show" );
+    statusBox.textContent = "📢 Pengumuman"; 
+    announcementBell.src = BELL_URL; announcementBell.currentTime = 0; try{
+      await announcementBell.play(); await waitForAudioEnd( announcementBell );
+    }catch(error){ console.error( "Bell playback failed:", error ); }
+      /* If night mode started during the bell, stop immediately. */ 
+    if(!currentDayMode){ announcementActive = false; return; } 
+    announcementAudio.src = NASIHAT_AUDIO; announcementAudio.currentTime = 0; try{
+      await announcementAudio.play(); await waitForAudioEnd( announcementAudio );
+    }catch(error){ console.error( "Nasihat playback failed:", error ); } 
+    announcementScreen.classList.remove( "show" ); scanArrow.classList.remove( "announcementHidden" ); 
+    announcementActive = false; statusBox.textContent = recordingActive ? "🔴 Recording" : "Ready for next visitor"; 
+    console.log( "GENERAL ANNOUNCEMENT FINISHED" ); }
+  function waitForAudioEnd( audioElement ){ 
+    return new Promise(resolve => { 
+      const finished = () => { audioElement.removeEventListener( "ended", finished ); resolve(); }; 
+      audioElement.addEventListener( "ended", finished ); }); }
 /* ============================================================
    UPLOAD VIDEO
 ============================================================ */
