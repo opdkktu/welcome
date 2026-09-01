@@ -754,20 +754,53 @@ let lastAnnouncementKey = "";
 
 
 /* ============================================================
-   RECORDING VARIABLES
+   RECORDING VARIABLES — DUAL OVERLAP RECORDER
 ============================================================ */
-
-let mediaRecorder = null;
-
-let recordingChunks = [];
-
-let recordingStartTime = null;
-
-let recordingTimer = null;
 
 let recordingActive = false;
 
 let uploadInProgress = false;
+
+/*
+   Two recorders alternate.
+
+   Example:
+
+   Recorder A
+   File 1: 07:10:00 → 07:12:02
+   File 3: 07:14:00 → 07:16:02
+
+   Recorder B
+   File 2: 07:12:00 → 07:14:02
+   File 4: 07:16:00 → 07:18:02
+*/
+
+const recorderSlots = {
+
+  A: {
+    recorder: null,
+    chunks: [],
+    startTime: null,
+    stopTimer: null,
+    active: false
+  },
+
+  B: {
+    recorder: null,
+    chunks: [],
+    startTime: null,
+    stopTimer: null,
+    active: false
+  }
+
+};
+
+
+/*
+   Main scheduler timer.
+*/
+
+let recordingSchedulerTimer = null;
 
 
 /* ============================================================
@@ -783,8 +816,34 @@ let uploadInProgress = false;
    2 minutes to create a new file.
 */
 
-const RECORDING_INTERVAL_MS =
+const RECORDING_START_INTERVAL_MS  =
   2 * 60 * 1000;
+  /*
+   Each file continues for an additional
+   2 seconds after the next file starts.
+
+   Example:
+
+   File 1
+   07:10:00 → 07:12:02
+
+   File 2
+   07:12:00 → 07:14:02
+*/
+
+const RECORDING_OVERLAP_MS =
+  2 * 1000;
+
+
+/*
+   Total duration of every file.
+
+   120 seconds + 2 seconds
+*/
+
+const RECORDING_FILE_DURATION_MS =
+  RECORDING_START_INTERVAL_MS +
+  RECORDING_OVERLAP_MS;
 
 /* ============================================================
    DAY / NIGHT TIME FUNCTIONS
@@ -1330,22 +1389,28 @@ function createTimestampedVideoStream(){
   return recordingCanvasStream;
 
 }
-
-
-/* ============================================================
-   START RECORDING
+  /* ============================================================
+   START ONE OVERLAPPING RECORDING SLOT
 ============================================================ */
 
-function startRecording(){
+function startRecordingSlot(slotName){
+
+  const slot =
+    recorderSlots[slotName];
+
 
   /*
-     Don't start another recorder
-     if one is already recording.
+     Don't start the same slot twice.
   */
 
   if(
-    recordingActive
+    slot.active
   ){
+
+    console.warn(
+      "Recorder slot already active:",
+      slotName
+    );
 
     return;
 
@@ -1353,7 +1418,7 @@ function startRecording(){
 
 
   /*
-     Never record during night mode.
+     Must be day mode.
   */
 
   if(
@@ -1383,19 +1448,6 @@ function startRecording(){
 
 
   /*
-     Must be inside recording window.
-  */
-
-  if(
-    !isRecordingTime()
-  ){
-
-    return;
-
-  }
-
-
-  /*
      Camera must be ready.
   */
 
@@ -1412,75 +1464,64 @@ function startRecording(){
   }
 
 
-  const mimeType =
-    getSupportedMimeType();
-
-
   /*
-     IMPORTANT:
-
-     We do NOT create a new camera stream.
-
-     We reuse the timestamp canvas stream.
+     Reuse continuous timestamp stream.
   */
 
   const timestampStream =
     createTimestampedVideoStream();
 
 
-  recordingChunks = [];
+  const mimeType =
+    getSupportedMimeType();
 
 
-  recordingStartTime =
+  /*
+     Reset this slot.
+  */
+
+  slot.chunks =
+    [];
+
+
+  slot.startTime =
     new Date();
 
 
   try{
 
-    mediaRecorder =
-
+    slot.recorder =
       mimeType
 
-      ?
+        ?
 
-      new MediaRecorder(
+        new MediaRecorder(
+          timestampStream,
+          {
 
-        timestampStream,
+            mimeType:
+              mimeType,
 
-        {
+            videoBitsPerSecond:
+              VIDEO_BITRATE
 
-          mimeType:
-            mimeType,
+          }
+        )
 
-          videoBitsPerSecond:
-            VIDEO_BITRATE
+        :
 
-        }
-
-      )
-
-      :
-
-      new MediaRecorder(
-        timestampStream
-      );
+        new MediaRecorder(
+          timestampStream
+        );
 
 
   }catch(error){
 
     console.error(
       "MediaRecorder failed:",
+      slotName,
       error
     );
-
-
-    recordingActive =
-      false;
-
-
-    statusBox.textContent =
-      "Recording unavailable";
-
 
     return;
 
@@ -1488,10 +1529,10 @@ function startRecording(){
 
 
   /*
-     DATA AVAILABLE
+     Data collection.
   */
 
-  mediaRecorder.ondataavailable =
+  slot.recorder.ondataavailable =
     event => {
 
       if(
@@ -1499,7 +1540,7 @@ function startRecording(){
         event.data.size > 0
       ){
 
-        recordingChunks.push(
+        slot.chunks.push(
           event.data
         );
 
@@ -1509,48 +1550,47 @@ function startRecording(){
 
 
   /*
-     RECORDING STOPPED
+     Finished.
   */
 
-  mediaRecorder.onstop =
+  slot.recorder.onstop =
     () => {
 
-      /*
-         finishRecording() is deliberately
-         NOT blocking the next segment.
-      */
-
-      finishRecording();
+      finishRecordingSlot(
+        slotName
+      );
 
     };
 
 
   /*
-     RECORDER ERROR
+     Error.
   */
 
-  mediaRecorder.onerror =
+  slot.recorder.onerror =
     event => {
 
       console.error(
         "MediaRecorder error:",
+        slotName,
         event
       );
 
-
-      recordingActive =
+      slot.active =
         false;
 
     };
 
 
   /*
-     ==========================================================
-     START MEDIARECORDER — ONLY ONCE
-     ==========================================================
+     Start recorder.
   */
 
-  mediaRecorder.start();
+  slot.recorder.start();
+
+
+  slot.active =
+    true;
 
 
   recordingActive =
@@ -1558,180 +1598,137 @@ function startRecording(){
 
 
   statusBox.textContent =
-    "🔴 Recording : Timestamp ON";
+    "🔴 Recording";
 
 
   console.log(
-    "Recording started:",
+    "================================="
+  );
+
+
+  console.log(
+    "Recorder started:",
+    slotName
+  );
+
+
+  console.log(
+    "Start:",
     formatTime(
-      recordingStartTime
+      slot.startTime
     )
   );
 
 
+  console.log(
+    "================================="
+  );
+
+
   /*
-     ==========================================================
-     2-MINUTE SEGMENT TIMER
-     ==========================================================
+     Stop this file after:
+
+     2 minutes + 2 seconds.
   */
 
-  if(recordingTimer){
-
-    clearTimeout(
-      recordingTimer
-    );
-
-  }
-
-
-  recordingTimer =
+  slot.stopTimer =
     setTimeout(
 
       () => {
 
-        /*
-           Only stop if this exact recorder
-           is still active.
-        */
-
         if(
-          mediaRecorder &&
-          mediaRecorder.state ===
+          slot.recorder &&
+          slot.recorder.state ===
             "recording"
         ){
 
           console.log(
-            "2-minute segment reached."
+            "Stopping recorder:",
+            slotName
           );
 
 
-          mediaRecorder.stop();
+          slot.recorder.stop();
 
         }
 
       },
 
-      RECORDING_INTERVAL_MS
+      RECORDING_FILE_DURATION_MS
 
     );
 
 }
-
-
 /* ============================================================
-   STOP RECORDING
+   FORCE STOP ALL RECORDERS
 ============================================================ */
 
-function stopRecording(){
+function forceStopAllRecorders(){
 
-  /*
-     Cancel segment timer.
-  */
+  Object.values(
+    recorderSlots
+  ).forEach(
+    slot => {
 
-  if(
-    recordingTimer
-  ){
+      if(
+        slot.stopTimer
+      ){
 
-    clearTimeout(
-      recordingTimer
-    );
+        clearTimeout(
+          slot.stopTimer
+        );
 
-    recordingTimer =
-      null;
+        slot.stopTimer =
+          null;
 
-  }
-
-
-  /*
-     Nothing to stop.
-  */
-
-  if(
-    !mediaRecorder
-  ){
-
-    return;
-
-  }
+      }
 
 
-  /*
-     Stop current recorder.
-  */
+      if(
+        slot.recorder &&
+        slot.recorder.state ===
+          "recording"
+      ){
 
-  if(
-    mediaRecorder.state ===
-      "recording"
-  ){
+        try{
 
-    console.log(
-      "Stopping current recording segment..."
-    );
+          slot.recorder.stop();
 
+        }catch(error){
 
-    mediaRecorder.stop();
+          console.error(
+            "Recorder stop error:",
+            error
+          );
 
-  }
+        }
 
-}
-
-
-/* ============================================================
-   FORCE STOP RECORDING
-============================================================ */
-
-function forceStopRecording(){
-
-  if(
-    recordingTimer
-  ){
-
-    clearTimeout(
-      recordingTimer
-    );
-
-    recordingTimer =
-      null;
-
-  }
-
-
-  if(
-    mediaRecorder &&
-    mediaRecorder.state ===
-      "recording"
-  ){
-
-    try{
-
-      mediaRecorder.stop();
-
-    }catch(error){
-
-      console.error(
-        "Recorder stop error:",
-        error
-      );
+      }
 
     }
+  );
 
-  }
 
+  /*
+     Recording canvas can stop now.
+  */
 
   recordingActive =
     false;
 
 }
-
-
 /* ============================================================
-   FINISH RECORDING
+   FINISH ONE RECORDING SLOT
 ============================================================ */
 
-async function finishRecording(){
+function finishRecordingSlot(slotName){
+
+  const slot =
+    recorderSlots[slotName];
+
 
   /*
-     Capture the end time immediately.
+     Capture end time immediately.
   */
 
   const endDate =
@@ -1739,10 +1736,10 @@ async function finishRecording(){
 
 
   const startDate =
-    recordingStartTime ||
+    slot.startTime ||
     new Date(
       endDate.getTime() -
-      RECORDING_INTERVAL_MS
+      RECORDING_FILE_DURATION_MS
     );
 
 
@@ -1754,53 +1751,47 @@ async function finishRecording(){
 
 
   /*
-     IMPORTANT:
+     Copy chunks immediately.
 
-     Copy the chunks immediately.
-
-     This allows the next recording segment
-     to use a completely new array.
+     This allows the same slot to
+     be reused later.
   */
 
   const chunks =
-    recordingChunks.slice();
+    slot.chunks.slice();
 
 
-  recordingChunks = [];
+  slot.chunks =
+    [];
 
 
   /*
-     Get MIME type.
+     MIME type.
   */
 
   const mimeType =
+    slot.recorder &&
+    slot.recorder.mimeType
 
-    mediaRecorder &&
-    mediaRecorder.mimeType
+      ?
 
-    ?
+      slot.recorder.mimeType
 
-    mediaRecorder.mimeType
+      :
 
-    :
-
-    "video/webm";
+      "video/webm";
 
 
   /*
-     Create completed video blob.
+     Create completed video.
   */
 
   const blob =
     new Blob(
-
       chunks,
-
       {
-        type:
-          mimeType
+        type: mimeType
       }
-
     );
 
 
@@ -1811,13 +1802,8 @@ async function finishRecording(){
 
   console.log(
     "Recording completed:",
+    slotName,
     filename
-  );
-
-
-  console.log(
-    "Video duration target:",
-    "2 minutes"
   );
 
 
@@ -1838,19 +1824,10 @@ async function finishRecording(){
 
 
   /*
-     ==========================================================
-     IMPORTANT
-     ==========================================================
+     Upload independently.
 
-     Upload WITHOUT BLOCKING the next recording.
-
-     We deliberately do NOT use:
-
-       await uploadRecording()
-
-     here.
-
-     The upload runs independently.
+     IMPORTANT:
+     Do NOT await.
   */
 
   uploadRecording(
@@ -1858,61 +1835,51 @@ async function finishRecording(){
     filename
   ).catch(
     error => {
+
       console.error(
         "Background upload error:",
         error
       );
+
     }
   );
-  /*
-     ==========================================================
-     START NEXT SEGMENT IMMEDIATELY
-     ==========================================================
-  */
+
 
   /*
-     Give MediaRecorder's stop event a moment
-     to finish completely before creating
-     the next recorder.
+     Release slot.
   */
+
+  slot.recorder =
+    null;
+
+  slot.startTime =
+    null;
+
+  slot.active =
+    false;
+
+
+  /*
+     Overall recording state.
+  */
+
+  recordingActive =
+    recorderSlots.A.active ||
+    recorderSlots.B.active;
+
+
   if(
-    currentDayMode &&
-    isRecordingTime()
+    currentDayMode
   ){
-    setTimeout(
-      () => {
 
-        /*
-           Do not start if another recorder
-           somehow already started.
-        */
-
-        if(
-          !recordingActive &&
-          currentDayMode &&
-          isRecordingTime()
-        ){
-          console.log(
-            "Starting next 2-minute segment..."
-          );
-          startRecording();
-        }
-      },
-      50
-    );
-  }else{
-    recordingActive =
-      false;
     statusBox.textContent =
-      currentDayMode
-        ? "Recording finished"
-        : "Night mode";
-    console.log(
-      "Recording window ended."
-    );
-  }
-}
+      recordingActive
+        ? "🔴 Recording"
+        : "Recording finished";
 
+  }
+
+}
 /* ============================================================ 
 ENTER NIGHT MODE 
 ============================================================ */ 
@@ -1925,7 +1892,7 @@ ENTER NIGHT MODE
                                   console.log( "=================================" ); 
                                   currentDayMode = false; 
                                   /* Stop recording first. */ 
-                                  forceStopRecording(); 
+                                  forceStopAllRecorders(); 
                                   /* Stop welcome audio. */ 
                                   try{ audio.pause(); audio.currentTime = 0; 
                                      }catch(error){ console.error(error); } 
@@ -2369,15 +2336,14 @@ function blobToBase64(
 
 }
 
-
 /* ============================================================
-   RECORDING SCHEDULER
+   OVERLAP RECORDING SCHEDULER
 ============================================================ */
 
 function recordingScheduler(){
 
   /*
-     No recording processing at night.
+     Never record at night.
   */
 
   if(
@@ -2390,49 +2356,190 @@ function recordingScheduler(){
 
 
   /*
-     Start recording if we are
-     inside a recording window.
+     Only record inside recording windows.
   */
 
   if(
-    isRecordingTime() &&
-    !recordingActive
+    !isRecordingTime()
   ){
 
-    startRecording();
+    return;
+
+  }
+
+
+  const now =
+    new Date();
+
+
+  /*
+     We schedule based on the exact
+     2-minute boundary.
+
+     Example:
+
+     07:10:00
+     07:12:00
+     07:14:00
+     07:16:00
+  */
+
+
+  const seconds =
+    now.getSeconds();
+
+
+  const milliseconds =
+    now.getMilliseconds();
+
+
+  /*
+     Only trigger near the exact
+     beginning of a minute.
+  */
+
+  if(
+    seconds !== 0 ||
+    milliseconds > 900
+  ){
+
+    return;
 
   }
 
 
   /*
-     Stop recording when the
-     recording window ends.
-
-     IMPORTANT:
-
-     We don't wait for upload.
+     Total minutes since midnight.
   */
 
+  const totalMinutes =
+    now.getHours() * 60 +
+    now.getMinutes();
+
+
+  /*
+     Find the matching recording window.
+  */
+
+  const activeWindow =
+    RECORDING_WINDOWS.find(
+      window => {
+
+        const [
+          startHour,
+          startMinute
+        ] =
+          window.start
+            .split(":")
+            .map(Number);
+
+
+        const startMinutes =
+          startHour * 60 +
+          startMinute;
+
+
+        return (
+          totalMinutes >=
+          startMinutes
+        );
+
+      }
+    );
+
+
   if(
-    !isRecordingTime() &&
-    recordingActive
+    !activeWindow
   ){
 
-    stopRecording();
+    return;
 
   }
 
+
+  /*
+     Calculate minutes from the
+     recording window start.
+  */
+
+  const [
+    startHour,
+    startMinute
+  ] =
+    activeWindow.start
+      .split(":")
+      .map(Number);
+
+
+  const windowStartMinutes =
+    startHour * 60 +
+    startMinute;
+
+
+  const minutesFromWindowStart =
+    totalMinutes -
+    windowStartMinutes;
+
+
+  /*
+     Only every 2 minutes.
+  */
+
+  if(
+    minutesFromWindowStart %
+    2 !== 0
+  ){
+
+    return;
+
+  }
+
+
+  /*
+     Alternate recorder slots.
+
+     Segment 0 → A
+     Segment 1 → B
+     Segment 2 → A
+     Segment 3 → B
+  */
+
+  const segmentNumber =
+    Math.floor(
+      minutesFromWindowStart /
+      2
+    );
+
+
+  const slotName =
+    segmentNumber %
+    2 === 0
+
+      ?
+
+      "A"
+
+      :
+
+      "B";
+
+
+  /*
+     Start only if free.
+  */
+
+  if(
+    !recorderSlots[
+      slotName
+    ].active
+  ){
+
+    startRecordingSlot(
+      slotName
+    );
+
+  }
 }
-
-
-/*
-   Run scheduler every second.
-*/
-
-setInterval(
-  recordingScheduler,
-  1000
-);
 
 
 /* ============================================================
