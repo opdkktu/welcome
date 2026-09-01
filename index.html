@@ -716,7 +716,7 @@ let cctvPeer = null;
 let cctvActive = false;
 /* ============================================================
    RECORDING SETTINGS
-============================================================ *
+============================================================ */
 
 /* Additional recording windows */
 const RECORDING_WINDOWS = [
@@ -978,9 +978,9 @@ function isRecordingTime(){
 
 
       return (
-        currentMinutes >= start &&
-        currentMinutes < end
-      );
+  totalMinutes >= startMinutes &&
+  totalMinutes < endMinutes
+);
 
     }
   );
@@ -2540,7 +2540,7 @@ function recordingScheduler(){
 
   }
 }
-
+setInterval(recordingScheduler, 1000);
 
 /* ============================================================
    FACE DETECTION
