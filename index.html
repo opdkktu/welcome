@@ -840,6 +840,70 @@ function shouldBeDayMode(){
   );
 
 }
+  /* ============================================================
+STOP CAMERA COMPLETELY
+============================================================ */
+
+function stopCamera(){
+console.log(
+Stopping camera...
+);
+
+if(video.srcObject){
+
+const tracks =
+video.srcObject.getTracks();
+
+tracks.forEach(track => {
+
+try{
+
+track.stop();
+
+}catch(error){
+
+console.error(
+Camera track stop error:,
+error
+);
+}
+});
+video.srcObject = null;
+}
+video.pause();
+}
+
+/* ============================================================
+STOP AI
+============================================================ */
+function stopAI(){
+console.log(
+Stopping MediaPipe...
+);
+detectionRunning = false;
+
+/*
+MediaPipe detector has close()
+in current Tasks Vision versions.
+*/
+
+if(detector){
+try{
+if(
+typeof detector.close ===
+function
+){
+detector.close();
+}
+}catch(error){
+console.error(
+Detector close error:,
+error
+);
+}
+}
+detector = null;
+}
 /* ============================================================
    RECORDING TIME
 ============================================================ */
