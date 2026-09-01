@@ -786,7 +786,60 @@ let uploadInProgress = false;
 const RECORDING_INTERVAL_MS =
   2 * 60 * 1000;
 
+/* ============================================================
+   DAY / NIGHT TIME FUNCTIONS
+============================================================ */
 
+function getCurrentMinutes(){
+
+  const now = new Date();
+
+  return (
+    now.getHours() * 60 +
+    now.getMinutes()
+  );
+
+}
+
+
+function getDayStartMinutes(){
+
+  return (
+    DAY_START_HOUR * 60 +
+    DAY_START_MINUTE
+  );
+
+}
+
+
+function getNightStartMinutes(){
+
+  return (
+    NIGHT_START_HOUR * 60 +
+    NIGHT_START_MINUTE
+  );
+
+}
+
+
+/*
+   TRUE = PRIMA should be running
+
+   07:00 → 17:20 = DAY
+   17:20 → 07:00 = NIGHT
+*/
+
+function shouldBeDayMode(){
+
+  const minutes =
+    getCurrentMinutes();
+
+  return (
+    minutes >= getDayStartMinutes() &&
+    minutes < getNightStartMinutes()
+  );
+
+}
 /* ============================================================
    RECORDING TIME
 ============================================================ */
