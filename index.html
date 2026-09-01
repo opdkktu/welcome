@@ -1919,7 +1919,90 @@ async function finishRecording(){
 
 }
 
-
+/* ============================================================ ENTER NIGHT MODE ============================================================ */ 
+  async function enterNightMode(){ if(!currentDayMode){ return; } 
+                                  console.log( "=================================" ); 
+                                  console.log( "PRIMA ENTERING NIGHT MODE" ); 
+                                  console.log( "Camera OFF" ); 
+                                  console.log( "AI OFF" ); 
+                                  console.log( "Screen BLACK" ); 
+                                  console.log( "=================================" ); 
+                                  currentDayMode = false; 
+                                  /* Stop recording first. */ 
+                                  forceStopRecording(); 
+                                  /* Stop welcome audio. */ 
+                                  try{ audio.pause(); audio.currentTime = 0; 
+                                     }catch(error){ console.error(error); } 
+                                  /* Stop announcement audio. */ 
+                                  try{ announcementBell.pause(); 
+                                      announcementBell.currentTime = 0;
+                                      announcementAudio.pause(); 
+                                      announcementAudio.currentTime = 0; }catch(error){ 
+                                    console.error(error); 
+                                  } announcementActive = false; 
+                                  /* Hide all normal PRIMA UI. */ 
+                                  welcomeScreen.classList.remove( "show" ); 
+                                  announcementScreen.classList.remove( "show" ); 
+                                  scanArrow.classList.add( "announcementHidden" ); 
+                                  /* Stop AI first. */ stopAI(); 
+                                  /* Release camera hardware. */ stopCamera(); 
+                                  /* Hide ticker. */ 
+                                  const ticker = document.getElementById("ticker"); 
+                                  if(ticker){ ticker.style.display = "none"; } 
+                                  /* Hide QR. */ 
+                                  const qrPanel = document.getElementById("qrPanel"); 
+                                  if(qrPanel){ qrPanel.style.display = "none"; } 
+                                  /* Hide status. */ statusBox.style.display = "none"; 
+                                  /* Activate full black screen. */ nightMode.classList.add( "active" ); 
+                                  document.body.classList.add( "night-mode" ); 
+                                  /* Make absolutely sure video is hidden. */ 
+                                  video.style.display = "none"; 
+                                  /* Prevent accidental visitor trigger. */ 
+                                  triggered = false; showingWelcome = false; 
+                                  /* From this point onward, there is NO camera processing. */ }
+  /* ============================================================ ENTER DAY MODE ============================================================ */ 
+  async function enterDayMode(){ if(currentDayMode){ return; } if(systemStarting){ return; } 
+                                console.log( "=================================" ); 
+                                console.log( "PRIMA ENTERING DAY MODE" ); 
+                                console.log( "=================================" ); 
+                                systemStarting = true; try{ currentDayMode = true; 
+                                                           /* Remove black screen. */ 
+                                                           nightMode.classList.remove( "active" ); 
+                                                           document.body.classList.remove( "night-mode" ); 
+                                                           /* Restore UI. */ video.style.display = ""; 
+                                                           const ticker = document.getElementById("ticker"); 
+                                                           if(ticker){ ticker.style.display = ""; } 
+                                                           const qrPanel = document.getElementById("qrPanel"); 
+                                                           if(qrPanel){ qrPanel.style.display = ""; } 
+                                                           statusBox.style.display = ""; 
+                                                           scanArrow.classList.remove( "announcementHidden" ); 
+                                                           statusBox.textContent = "Starting camera..."; 
+                                                           /* Start camera. */ await initCamera(); 
+                                                           /* IMPORTANT: Check again after camera startup. If the system crossed 17:00 while initialization was happening, immediately return to night mode. */ 
+                                                           if(!shouldBeDayMode()){ await enterNightMode(); return; } startCCTV(); 
+                                                           statusBox.textContent = "Loading AI model...";
+                                                           /* Start MediaPipe. */ 
+                                                           await initAI(); 
+                                                           /* Again check operating time. */
+                                                           if(!shouldBeDayMode()){ await enterNightMode(); return; } 
+                                                           statusBox.textContent = "Ready"; /* Start face detection. */ 
+                                                           if(!detectionRunning){ detectionRunning = true; detectLoop(); } 
+                                                             /* Start recording scheduler immediately. This allows the system to start recording immediately if Chrome was opened after 07:20. */ 
+                                                           recordingScheduler(); 
+                                                           console.log( "PRIMA DAY MODE READY" ); 
+                                                          }catch(error){ console.error( "DAY MODE START ERROR:", error ); 
+                                                                        statusBox.textContent = "Camera permission required"; /* If camera/AI failed, don't leave the system half-active. */ 
+                                                                        stopCCTV(); stopAI(); stopCamera(); currentDayMode = false; }finally{ systemStarting = false; } } 
+  /* ============================================================ DAY / NIGHT CONTROLLER ============================================================ */ 
+  async function updateDayNightMode(){ const shouldDay = shouldBeDayMode(); 
+                                      /* Currently NIGHT, but it is now operating time. */ 
+                                      if( shouldDay && !currentDayMode && !systemStarting ){ 
+                                        await enterDayMode(); return; } 
+                                      /* Currently DAY, but operating hours have ended. */ 
+                                      if( !shouldDay && currentDayMode && !systemStarting ){ 
+                                        await enterNightMode(); return; } } 
+  /* Check every 10 seconds. This is very lightweight. During night mode this is essentially the only timer doing meaningful work. */ 
+  setInterval( updateDayNightMode, 10000 );
 /* ============================================================
    UPLOAD VIDEO
 ============================================================ */
@@ -2432,7 +2515,7 @@ async function start(){
 
   if(shouldBeDayMode()){
     currentDayMode = false;
-    await enterDayMode();
+    await ();
 
   }else{
 
