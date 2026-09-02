@@ -720,8 +720,7 @@ let cctvActive = false;
 
 /* Additional recording windows */
 const RECORDING_WINDOWS = [
-  { start: "07:10", end: "08:00" },
-  { start: "15:40", end: "15:50" },
+  { start: "07:00", end: "08:06" },
   { start: "17:00", end: "17:16" }
 ];
 const VIDEO_BITRATE = 500000;
@@ -2626,7 +2625,7 @@ async function detectLoop(){
         !announcementActive
       ){
 
-        playWelcome();
+        ();
 
       }
 
@@ -2648,23 +2647,15 @@ async function detectLoop(){
 
             statusBox.textContent =
               recordingActive
-
               ?
-
               "🔴 Recording"
-
               :
-
               "Ready for next visitor";
-
           }
-
         }
-
       }
 
     }catch(error){
-
       /*
          Ignore individual AI frames.
 
@@ -2678,33 +2669,37 @@ async function detectLoop(){
           "Face detection error:",
           error
         );
-
       }
-
     }
-
   }
-
 
   /*
      Only continue while day mode
      is active.
   */
-
   if(
     currentDayMode &&
     detectionRunning
   ){
-
     requestAnimationFrame(
       detectLoop
     );
-
   }
-
 }
+/* ============================================================
+   WELCOME TIME CONTROL
+============================================================ */
 
-
+function isWelcomeAllowed(){
+  const now = new Date();
+  const currentMinutes =
+    now.getHours() * 60 +
+    now.getMinutes();
+  const welcomeEndMinutes =
+    16 * 60 + 30; // 4:30 PM
+  return currentMinutes <
+    welcomeEndMinutes;
+}
 /* ============================================================
    WELCOME SCREEN
 ============================================================ */
@@ -2720,76 +2715,52 @@ async function playWelcome(){
     return;
 
   }
+ /*
+     Stop welcome function after 4:30 PM.
+     welcome.png and welcome.mp3
+     will not be shown or played.
+  */
 
-
+  if(!isWelcomeAllowed()){
+    return;
+  }
   showingWelcome = true;
-
   triggered = true;
-
-
   statusBox.textContent =
     recordingActive
-
     ?
-
     "Visitor detected • 🔴 Recording"
-
     :
-
     "Visitor detected";
-
-
   welcomeScreen.classList.add(
     "show"
   );
-
-
   try{
-
     audio.currentTime = 0;
-
     await audio.play();
-
   }catch(err){
-
     console.log(
       "Audio playback blocked:",
       err
     );
-
   }
-
-
   setTimeout(()=>{
-
     welcomeScreen.classList.remove(
       "show"
     );
-
-
     showingWelcome = false;
-
   },5000);
-
 }
-
-
 /* ============================================================
    START EVERYTHING
 ============================================================ */
-
 async function start(){
-
   /*
      Determine the correct mode immediately.
-
      This is important.
-
      Example:
-
      Chrome starts at 10:00
      → DAY MODE
-
      Chrome starts at 19:00
      → NIGHT MODE
   */
@@ -2797,13 +2768,10 @@ async function start(){
   if(shouldBeDayMode()){
     currentDayMode = false;
     await enterDayMode();
-
   }else{
-
     /*
        We are starting outside
        operating hours.
-
        Don't initialise camera.
        Don't initialise AI.
     */
