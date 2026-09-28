@@ -567,7 +567,15 @@ body.night-mode{
 
 </audio>
 
-
+<audio
+  id="darahAudio"
+  preload="auto"
+>
+  <source
+    src="darah.mp3"
+    type="audio/mpeg"
+  >
+</audio>
 <!-- =========================
      STATUS
 ========================= -->
@@ -610,36 +618,17 @@ from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
    ELEMENTS
 ============================================================ */
 
-const video =
-  document.getElementById("webcam");
-
-const audio =
-  document.getElementById("welcomeAudio");
-
-const welcomeScreen =
-  document.getElementById("welcomeScreen");
-
-const statusBox =
-  document.getElementById("status");
-
-const announcementScreen =
-  document.getElementById("announcementScreen");
-
-const announcementImage =
-  document.getElementById("announcementImage");
-
-const announcementBell =
-  document.getElementById("announcementBell");
-
-const announcementAudio =
-  document.getElementById("announcementAudio");
-
-const scanArrow =
-  document.getElementById("scanArrow");
-
-const nightMode =
-  document.getElementById("nightMode");
-
+const video =document.getElementById("webcam");
+const audio =document.getElementById("welcomeAudio");
+const welcomeScreen = document.getElementById("welcomeScreen");
+const statusBox = document.getElementById("status");
+const announcementScreen =  document.getElementById("announcementScreen");
+const announcementImage = document.getElementById("announcementImage");
+const announcementBell =  document.getElementById("announcementBell");
+const announcementAudio =  document.getElementById("announcementAudio");
+const darahAudio =  document.getElementById("darahAudio");
+const scanArrow =  document.getElementById("scanArrow");
+const nightMode =  document.getElementById("nightMode");
 
 /* ============================================================
    GOOGLE APPS SCRIPT UPLOAD URL
@@ -2117,6 +2106,177 @@ ANNOUNCEMENT SCHEDULER
       const announcementKey = formatDate(now) + "_" + currentTime;
       if( announcementKey !== lastAnnouncementKey ){ lastAnnouncementKey = announcementKey; playGeneralAnnouncement(); } } } 
   setInterval( announcementScheduler, 1000 ); 
+  /* ============================================================
+   DARAH AUDIO SCHEDULER
+   Sunday – Wednesday
+   07:50 and 07:52
+   Active window: 07:40 – 07:59
+============================================================ */
+
+const DARAH_TIMES = ["07:50","07:53","07:54","07:55","07:56","07:57","07:58"];
+
+let lastDarahKey = "";
+function isDarahDay(){
+  const day =
+    new Date().getDay();
+
+  /*
+     JavaScript:
+     Sunday    = 0
+     Monday    = 1
+     Tuesday   = 2
+     Wednesday = 3
+     Thursday  = 4
+     Friday    = 5
+     Saturday  = 6
+  */
+
+  return (
+    day >= 0 &&
+    day <= 3
+  );
+
+}
+async function playDarah(){
+  /*
+     Never play during night mode.
+  */
+  if(!currentDayMode){
+    return;
+  }
+  /*
+     Sunday – Wednesday only.
+  */
+
+  if(!isDarahDay()){
+    return;
+  }
+
+  try{
+
+    darahAudio.pause();
+
+    darahAudio.currentTime = 0;
+
+    await darahAudio.play();
+
+    console.log(
+      "🩸 darah.mp3 played"
+    );
+
+  }catch(error){
+
+    console.error(
+      "Darah audio playback failed:",
+      error
+    );
+
+  }
+
+}
+
+
+function darahScheduler(){
+
+  /*
+     Don't process during night mode.
+  */
+
+  if(!currentDayMode){
+    return;
+  }
+
+  /*
+     Sunday – Wednesday only.
+  */
+
+  if(!isDarahDay()){
+    return;
+  }
+
+  const now =
+    new Date();
+
+  const hours =
+    String(
+      now.getHours()
+    ).padStart(2,"0");
+
+  const minutes =
+    String(
+      now.getMinutes()
+    ).padStart(2,"0");
+
+  const currentTime =
+    hours + ":" + minutes;
+
+  /*
+     Only allow 07:40 – 07:59.
+  */
+
+  const currentMinutes =
+    now.getHours() * 60 +
+    now.getMinutes();
+
+  const windowStart =
+    7 * 60 + 40;
+
+  const windowEnd =
+    7 * 60 + 59;
+
+  if(
+    currentMinutes <
+      windowStart ||
+    currentMinutes >
+      windowEnd
+  ){
+    return;
+  }
+
+  /*
+     Play at exactly:
+     07:50
+     07:52
+  */
+
+  if(
+    DARAH_TIMES.includes(
+      currentTime
+    )
+  ){
+
+    const darahKey =
+      formatDate(now) +
+      "_" +
+      currentTime;
+
+    /*
+       Prevent the same audio
+       from playing repeatedly
+       during the same minute.
+    */
+
+    if(
+      darahKey !==
+      lastDarahKey
+    ){
+
+      lastDarahKey =
+        darahKey;
+
+      playDarah();
+
+    }
+
+  }
+
+}
+
+
+setInterval(
+  darahScheduler,
+  1000
+);
   /* ============================================================
   AI INITIALIZATION 
   ============================================================ */
