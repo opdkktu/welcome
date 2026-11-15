@@ -6,6 +6,9 @@
 
 <title>Welcome Screen</title>
 
+<!-- Free peer-to-peer CCTV: PeerJS cloud (signalling) + Google STUN -->
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+
 <style>
 
 *{
@@ -382,6 +385,83 @@ video{
 body.night-mode{
   background:#000 !important;
 }
+
+/* =========================
+   QR ANNOUNCEMENT
+========================= */
+
+#qrAnnouncementScreen{
+  position:fixed;
+  inset:0;
+
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  gap:3vh;
+
+  background:black;
+
+  opacity:0;
+  visibility:hidden;
+
+  transition:
+    opacity .5s ease,
+    visibility .5s ease;
+
+  z-index:10001;
+}
+
+#qrAnnouncementScreen.show{
+  opacity:1;
+  visibility:visible;
+}
+
+#qrAnnouncementImage{
+  width:min(72vh,80vw);
+  height:min(72vh,80vw);
+
+  object-fit:contain;
+  image-rendering:pixelated;
+
+  background:white;
+  padding:2.5vh;
+  border-radius:24px;
+
+  box-shadow:
+    0 0 60px rgba(255,255,255,.18);
+}
+
+#qrAnnouncementText{
+  color:white;
+  font-size:max(3vh,22px);
+  font-weight:700;
+  letter-spacing:3px;
+  text-align:center;
+
+  animation:
+    textBlink .8s infinite alternate;
+}
+
+/* =========================
+   NIGHT HEARTBEAT
+========================= */
+
+#nightPulse{
+  color:#2a2a2a;
+  font-size:4vw;
+  font-weight:100;
+  letter-spacing:6px;
+
+  opacity:0;
+  transition:opacity 1s ease;
+
+  user-select:none;
+}
+
+#nightPulse.on{
+  opacity:1;
+}
 </style>
 </head>
 
@@ -392,6 +472,7 @@ body.night-mode{
 
 <div id="nightMode">
   <div id="nightModeStatus">NIGHT</div>
+  <div id="nightPulse">00:00</div>
 </div>
 <!-- =========================
      IDLE SCREEN
@@ -530,6 +611,27 @@ body.night-mode{
   >
 </div>
 
+<!-- =========================
+     QR ANNOUNCEMENT
+========================= -->
+
+<div id="qrAnnouncementScreen">
+  <img
+    id="qrAnnouncementImage"
+    src="qr.png"
+    alt="QR code"
+  >
+  <div id="qrAnnouncementText">
+    Imbas QR untuk semak status giliran anda
+  </div>
+</div>
+
+<audio
+  id="scanQrAudio"
+  src="scanqr.mp3"
+  preload="auto"
+></audio>
+
 <audio
   id="announcementBell"
   preload="auto"
@@ -629,6 +731,9 @@ const announcementAudio =  document.getElementById("announcementAudio");
 const darahAudio =  document.getElementById("darahAudio");
 const scanArrow =  document.getElementById("scanArrow");
 const nightMode =  document.getElementById("nightMode");
+const qrAnnouncementScreen = document.getElementById("qrAnnouncementScreen");
+const scanQrAudio = document.getElementById("scanQrAudio");
+const nightPulse = document.getElementById("nightPulse");
 
 /* ============================================================
    GOOGLE APPS SCRIPT UPLOAD URL
@@ -695,14 +800,57 @@ let timestampAnimationFrame = null;
      CCTV WEBRTC
 ============================================================ */
 
-const CCTV_WS_URL =
-  "wss://YOUR-CCTV-WORKER.workers.dev/ws";
+/*
+   FREE STACK (no server, no time limit):
+   - PeerJS cloud  = signalling only
+   - Google STUN   = finds a direct route
+   - Video goes straight from this screen to the viewer (peer-to-peer)
 
-let cctvSocket = null;
+   CCTV_PEER_ID must be identical in cctv.html.
+*/
+
+const CCTV_PEER_ID = "kkah-welcome-cam-gz345w9dgy";
+
+/*
+   SHA-256 of the viewer passphrase. The passphrase itself is NOT
+   stored in this public repository. Viewers type it in cctv.html.
+*/
+
+const CCTV_PASS_HASH = "0e6b84df8a6404c4c0e79a5e97519e9924ff957c642f308fcc1882addabc2e3e";
+
+/* Maximum people watching at the same time. */
+
+const CCTV_MAX_VIEWERS = 2;
+
+/* Upload limit per viewer (keeps the clinic network light). */
+
+const CCTV_MAX_BITRATE_KBPS = 500;
+
+/*
+   OPTIONAL free TURN relay. Only used when a clinic firewall blocks
+   the direct route. Create a free account at https://www.metered.ca
+   (Open Relay: 20 GB/month free), then paste the credentials URL:
+
+   "https://YOURAPP.metered.live/api/v1/turn/credentials?apiKey=YOURKEY"
+
+   Leave empty to use STUN only. Use the same value in cctv.html.
+*/
+
+const CCTV_TURN_CREDENTIALS_URL = "";
 
 let cctvPeer = null;
 
+let cctvViewers = new Map();
+
 let cctvActive = false;
+
+let cctvStarting = false;
+
+let cctvRestartTimer = null;
+
+let cctvReconnectTimer = null;
+
+let cctvRestartDelay = 5000;
 /* ============================================================
    RECORDING SETTINGS
 ============================================================ */
@@ -739,6 +887,63 @@ const NASIHAT_IMAGE =
 let announcementActive = false;
 
 let lastAnnouncementKey = "";
+
+
+/* ============================================================
+   QR ANNOUNCEMENT
+   Shows the QR code, pauses human detection, plays scanqr.mp3,
+   then everything goes back to normal.
+============================================================ */
+
+const QR_ANNOUNCEMENT_TIMES = [
+  "08:05",
+  "08:15",
+  "08:35",
+  "08:45",
+  "09:05",
+  "09:15",
+  "09:35",
+  "09:45",
+  "10:05",
+  "10:35",
+  "11:05",
+  "11:35",
+  "14:05",
+  "14:35",
+  "15:05",
+  "15:35"
+  /* add more times here, e.g. "10:05" */
+];
+
+/* If scanqr.mp3 is missing or blocked, show the QR for this long. */
+
+const QR_FALLBACK_MS = 20000;
+
+let qrAnnouncementActive = false;
+
+let lastQrAnnouncementKey = "";
+
+
+/* ============================================================
+   WELCOME WINDOW
+   Human detection / welcome.png / welcome.mp3 only run
+   between these times. Outside it, detection is stopped.
+============================================================ */
+
+const WELCOME_START_MINUTES = 7 * 60 + 40;   // 07:40
+
+const WELCOME_END_MINUTES = 16 * 60 + 30;    // 16:30
+
+
+/* ============================================================
+   KEEP SCREEN AWAKE (also overnight)
+============================================================ */
+
+const KEEP_AWAKE_INTERVAL_MS = 30 * 60 * 1000;
+
+const NIGHT_PULSE_MS = 10000;
+
+let wakeLock = null;
 
 
 /* ============================================================
@@ -1891,6 +2096,12 @@ ENTER NIGHT MODE
                                       announcementAudio.currentTime = 0; }catch(error){ 
                                     console.error(error); 
                                   } announcementActive = false; 
+                                  /* Stop QR announcement. */
+                                  qrAnnouncementActive = false;
+                                  try{ scanQrAudio.pause(); scanQrAudio.currentTime = 0; }catch(error){ console.error(error); }
+                                  qrAnnouncementScreen.classList.remove( "show" );
+                                  /* Stop CCTV (the camera is released below). */
+                                  stopCCTV();
                                   /* Hide all normal PRIMA UI. */ 
                                   welcomeScreen.classList.remove( "show" ); 
                                   announcementScreen.classList.remove( "show" ); 
@@ -1973,94 +2184,396 @@ ENTER NIGHT MODE
                           } video.srcObject = stream; return new Promise( (resolve,reject)=>{ 
       video.onloadedmetadata = ()=>{ resolve(); }; video.onerror = error => { reject(error); }; } ); } 
   /* ============================================================
-  CCTV WEBRTC PUBLISHER 
-  ============================================================ */ 
-  function startCCTV(){ 
-    /* CCTV only works during DAY MODE. */ 
-    if(!currentDayMode){ console.log( "CCTV not started: NIGHT MODE" );
-                        return; } 
-    /* Camera must already be running. */ 
-    if(!video.srcObject){ console.warn( "CCTV cannot start: camera unavailable." ); return; } 
-      /* Don't create duplicate connections. */ 
-    if(cctvSocket){ console.log( "CCTV signaling already connected." );
-                   return; } console.log( "Starting PRIMA CCTV..." ); 
-    cctvSocket = new WebSocket( CCTV_WS_URL ); 
-    /* ========================================================
-    CONNECTED
-    ======================================================== */ 
-    cctvSocket.onopen = () => { console.log( "CCTV signaling connected." ); 
-                               /* Tell the server: This Chromebook is the CAMERA publisher. */ 
-                               cctvSocket.send( JSON.stringify({ type: "publisher" }) ); }; 
-    /* ========================================================
-    MESSAGE
-    ======================================================== */ 
-    cctvSocket.onmessage = async event => { try{ 
-      const message = JSON.parse( event.data ); 
-      /* A viewer has opened cctv.html. */ 
-      if( message.type === "viewer-ready" ){ 
-        console.log( "CCTV viewer connected." ); 
-        await createCCTVOffer(); } 
-        /* Viewer answered our offer. */ 
-      else if( message.type === "answer" ){
-        if(!cctvPeer){ return; } await cctvPeer.setRemoteDescription( new RTCSessionDescription( message.answer ) ); 
-        console.log( "CCTV remote description set." ); } 
-        /* ICE candidate from viewer. */ 
-      else if( message.type === "candidate" ){
-        if( cctvPeer && message.candidate ){ 
-          try{ await cctvPeer.addIceCandidate( 
-            new RTCIceCandidate( message.candidate ) ); 
-             }catch(error){ console.error( "CCTV ICE candidate error:", error );
-                          } } } }catch(error){ console.error( "CCTV message error:", error ); } }; 
-    /* ========================================================
-    ERROR
-    ======================================================== */
-    cctvSocket.onerror = error => { 
-      console.error( "CCTV signaling error:", error ); }; 
-    /* ========================================================
-    CLOSED
-    ======================================================== */
-    cctvSocket.onclose = () => { console.log( "CCTV signaling disconnected." );
-                                cctvSocket = null; 
-                                cctvActive = false; 
-                                if(cctvPeer){ try{ cctvPeer.close(); }catch(error){ 
-                                  console.error( error ); } cctvPeer = null; } }; } 
-  /* ============================================================
-  CREATE CCTV WEBRTC OFFER 
-  ============================================================ */ 
-  
-  async function createCCTVOffer(){ /* Don't create CCTV if Night Mode has started. */
-    if(!currentDayMode){ return; } if(!video.srcObject){ return; }
-    /* Close previous peer connection. */ if(cctvPeer){ try{
-      cctvPeer.close(); }catch(error){ console.error( error ); } }
-      /* Create WebRTC connection. */ 
-    cctvPeer = new RTCPeerConnection({
-      iceServers:[ { urls: "stun:stun.l.google.com:19302" } ] });
-    /* IMPORTANT: Reuse the EXISTING PRIMA camera. We are NOT calling getUserMedia() again. */ 
-    video.srcObject .getTracks() .forEach(track => { cctvPeer.addTrack( track, video.srcObject ); });
-    /* Send ICE candidates to Cloudflare signaling server. */ 
-    cctvPeer.onicecandidate = event => { if( 
-      event.candidate && cctvSocket && cctvSocket.readyState === WebSocket.OPEN ){ 
-      cctvSocket.send( JSON.stringify({ type: "candidate", candidate: event.candidate }) ); } }; 
-    /* Connection state. */ cctvPeer.onconnectionstatechange = () => { 
-      console.log( "CCTV connection:", cctvPeer.connectionState );
-      if( cctvPeer.connectionState === "connected" ){ cctvActive = true; } if( cctvPeer.connectionState === "failed" || cctvPeer.connectionState === "disconnected" || cctvPeer.connectionState === "closed" ){ cctvActive = false; } 
-    };
-    /* Create WebRTC offer. */ 
-    const offer =
-      await cctvPeer.createOffer(); 
-    await cctvPeer.setLocalDescription( offer ); 
-    /* Send offer to viewer. */ if( 
-      cctvSocket && cctvSocket.readyState === WebSocket.OPEN )
-    { cctvSocket.send( JSON.stringify({ type: "offer", offer: cctvPeer.localDescription }) ); } }
-  /* ============================================================ 
-  STOP CCTV
+  CCTV (PeerJS - free, peer-to-peer)
   ============================================================ */
-  function stopCCTV(){ console.log( "Stopping PRIMA CCTV..." ); /* Close WebRTC. */
-                    if(cctvPeer){ try{ cctvPeer.close(); }catch(error){ 
-                      console.error( error ); } cctvPeer = null; } 
-                      /* Close signaling. */ if(cctvSocket){ try{ 
-                        cctvSocket.close(); }catch(error){ console.error( error );
-                                                         } cctvSocket = null; } cctvActive = false; } 
+
+  async function sha256Hex( text ){
+
+    const bytes = new TextEncoder().encode( text );
+
+    const digest = await crypto.subtle.digest( "SHA-256", bytes );
+
+    return Array.from( new Uint8Array( digest ) )
+      .map( byte => byte.toString( 16 ).padStart( 2, "0" ) )
+      .join( "" );
+
+  }
+
+
+  async function getCCTVIceServers(){
+
+    const servers = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" }
+    ];
+
+    if( CCTV_TURN_CREDENTIALS_URL ){
+
+      try{
+
+        const response = await fetch( CCTV_TURN_CREDENTIALS_URL );
+
+        const data = await response.json();
+
+        const extra = Array.isArray( data ) ? data : data.iceServers;
+
+        if( Array.isArray( extra ) ){ servers.push( ...extra ); }
+
+      }catch( error ){
+
+        console.warn( "TURN credentials unavailable, using STUN only:", error );
+
+      }
+
+    }
+
+    return servers;
+
+  }
+
+
+  /* ------------------------------------------------------------
+     START
+  ------------------------------------------------------------ */
+
+  async function startCCTV(){
+
+    /* CCTV only works during DAY MODE. */
+    if( !currentDayMode ){ console.log( "CCTV not started: NIGHT MODE" ); return; }
+
+    /* Camera must already be running. */
+    if( !video.srcObject ){ console.warn( "CCTV cannot start: camera unavailable." ); return; }
+
+    if( typeof Peer === "undefined" ){ console.warn( "CCTV cannot start: PeerJS library not loaded." ); return; }
+
+    /* Don't create duplicate connections. */
+    if( cctvPeer || cctvStarting ){ return; }
+
+    cctvStarting = true;
+
+    try{
+
+      const iceServers = await getCCTVIceServers();
+
+      /* Night mode may have started while we were waiting. */
+      if( !currentDayMode || cctvPeer ){ return; }
+
+      console.log( "Starting PRIMA CCTV..." );
+
+      const peer = new Peer( CCTV_PEER_ID, { debug: 1, config: { iceServers } } );
+
+      cctvPeer = peer;
+
+      peer.on( "open", id => {
+        cctvRestartDelay = 5000;
+        console.log( "CCTV ready:", id );
+      } );
+
+      peer.on( "connection", handleCCTVConnection );
+
+      /* Signalling lost: existing viewers keep streaming, we just re-register. */
+      peer.on( "disconnected", () => scheduleCCTVReconnect( peer ) );
+
+      peer.on( "close", () => handleCCTVPeerLost( peer ) );
+
+      peer.on( "error", error => {
+
+        console.warn( "CCTV peer error:", error.type );
+
+        if( peer.destroyed ){ handleCCTVPeerLost( peer ); }
+        else if( peer.disconnected ){ scheduleCCTVReconnect( peer ); }
+
+      } );
+
+    }catch( error ){
+
+      console.error( "CCTV start error:", error );
+
+      scheduleCCTVRestart();
+
+    }finally{
+
+      cctvStarting = false;
+
+    }
+
+  }
+
+
+  /* ------------------------------------------------------------
+     RECOVERY
+  ------------------------------------------------------------ */
+
+  function handleCCTVPeerLost( peer ){
+
+    if( cctvPeer !== peer ){ return; }
+
+    cctvPeer = null;
+
+    dropAllCCTVViewers();
+
+    scheduleCCTVRestart();
+
+  }
+
+
+  function scheduleCCTVRestart(){
+
+    if( cctvRestartTimer || !currentDayMode ){ return; }
+
+    cctvRestartTimer = setTimeout( () => {
+
+      cctvRestartTimer = null;
+
+      startCCTV();
+
+    }, cctvRestartDelay );
+
+    /* 5s, 10s, 20s, 40s, then every 60s. */
+    cctvRestartDelay = Math.min( cctvRestartDelay * 2, 60000 );
+
+  }
+
+
+  function scheduleCCTVReconnect( peer ){
+
+    if( cctvReconnectTimer || !currentDayMode ){ return; }
+
+    cctvReconnectTimer = setTimeout( () => {
+
+      cctvReconnectTimer = null;
+
+      if( cctvPeer === peer && !peer.destroyed && peer.disconnected && currentDayMode ){
+
+        try{ peer.reconnect(); }
+        catch( error ){ console.warn( "CCTV reconnect failed:", error ); }
+
+      }
+
+    }, 5000 );
+
+  }
+
+
+  /* Safety net: checks every 15 seconds that the camera is reachable. */
+
+  function cctvWatchdog(){
+
+    if( !currentDayMode || systemStarting || !video.srcObject ){ return; }
+
+    if( !cctvPeer ){
+
+      if( !cctvRestartTimer ){ startCCTV(); }
+
+    }else if( cctvPeer.disconnected && !cctvPeer.destroyed ){
+
+      scheduleCCTVReconnect( cctvPeer );
+
+    }
+
+  }
+
+  setInterval( cctvWatchdog, 15000 );
+
+
+  /* ------------------------------------------------------------
+     VIEWERS
+  ------------------------------------------------------------ */
+
+  function handleCCTVConnection( conn ){
+
+    let authenticated = false;
+
+    let attempts = 0;
+
+    const send = message => {
+      try{ conn.send( message ); }
+      catch( error ){ console.warn( "CCTV send failed:", error ); }
+    };
+
+    const closeLater = ms => setTimeout( () => {
+      try{ conn.close(); }catch( error ){}
+    }, ms );
+
+    /* Drop connections that never log in. */
+    const authTimeout = setTimeout( () => {
+      if( !authenticated ){ try{ conn.close(); }catch( error ){} }
+    }, 20000 );
+
+    conn.on( "data", async message => {
+
+      if( authenticated || !message || message.type !== "auth" ){ return; }
+
+      attempts++;
+
+      const passOk =
+        typeof message.pass === "string" &&
+        message.pass.length > 0 &&
+        message.pass.length <= 100 &&
+        ( await sha256Hex( message.pass ) ) === CCTV_PASS_HASH;
+
+      if( !passOk ){
+
+        send( { type: "auth-failed" } );
+
+        if( attempts >= 3 ){ closeLater( 500 ); }
+
+        return;
+
+      }
+
+      if( !currentDayMode || !cctvPeer || !video.srcObject ){
+
+        send( { type: "offline" } );
+
+        return;
+
+      }
+
+      if( cctvViewers.size >= CCTV_MAX_VIEWERS && !cctvViewers.has( conn.peer ) ){
+
+        send( { type: "busy" } );
+
+        return;
+
+      }
+
+      authenticated = true;
+
+      clearTimeout( authTimeout );
+
+      send( { type: "auth-ok" } );
+
+      /* IMPORTANT: reuse the EXISTING PRIMA camera. No second getUserMedia(). */
+      const call = cctvPeer.call( conn.peer, video.srcObject );
+
+      cctvViewers.set( conn.peer, { conn, call } );
+
+      cctvActive = true;
+
+      limitCCTVBitrate( call );
+
+      call.on( "close", () => dropCCTVViewer( conn.peer ) );
+
+      call.on( "error", () => dropCCTVViewer( conn.peer ) );
+
+      console.log( "CCTV viewer connected:", conn.peer );
+
+    } );
+
+    conn.on( "close", () => {
+
+      clearTimeout( authTimeout );
+
+      const viewer = cctvViewers.get( conn.peer );
+
+      if( viewer && viewer.conn === conn ){ dropCCTVViewer( conn.peer ); }
+
+    } );
+
+    conn.on( "error", error => console.warn( "CCTV data connection error:", error ) );
+
+  }
+
+
+  function dropCCTVViewer( id ){
+
+    const viewer = cctvViewers.get( id );
+
+    if( !viewer ){ return; }
+
+    cctvViewers.delete( id );
+
+    try{ viewer.call.close(); }catch( error ){}
+
+    try{ viewer.conn.close(); }catch( error ){}
+
+    cctvActive = cctvViewers.size > 0;
+
+    console.log( "CCTV viewer disconnected:", id );
+
+  }
+
+
+  function dropAllCCTVViewers(){
+
+    Array.from( cctvViewers.keys() ).forEach( dropCCTVViewer );
+
+  }
+
+
+  function limitCCTVBitrate( call ){
+
+    const pc = call.peerConnection;
+
+    if( !pc ){ return; }
+
+    pc.addEventListener( "connectionstatechange", () => {
+
+      if( pc.connectionState !== "connected" ){ return; }
+
+      pc.getSenders().forEach( sender => {
+
+        if( !sender.track || sender.track.kind !== "video" ){ return; }
+
+        try{
+
+          const params = sender.getParameters();
+
+          if( !params.encodings || !params.encodings.length ){ params.encodings = [ {} ]; }
+
+          params.encodings[0].maxBitrate = CCTV_MAX_BITRATE_KBPS * 1000;
+
+          sender.setParameters( params ).catch( () => {} );
+
+        }catch( error ){
+
+          console.warn( "CCTV bitrate limit failed:", error );
+
+        }
+
+      } );
+
+    } );
+
+  }
+
+
+  /* ------------------------------------------------------------
+     STOP
+  ------------------------------------------------------------ */
+
+  function stopCCTV(){
+
+    console.log( "Stopping PRIMA CCTV..." );
+
+    clearTimeout( cctvRestartTimer );
+
+    cctvRestartTimer = null;
+
+    clearTimeout( cctvReconnectTimer );
+
+    cctvReconnectTimer = null;
+
+    cctvRestartDelay = 5000;
+
+    dropAllCCTVViewers();
+
+    const peer = cctvPeer;
+
+    cctvPeer = null;
+
+    if( peer ){
+
+      try{ peer.destroy(); }
+      catch( error ){ console.error( error ); }
+
+    }
+
+    cctvActive = false;
+
+  }
+
   /* ============================================================
   ANNOUNCEMENT
   ============================================================ */ 
@@ -2088,16 +2601,40 @@ ENTER NIGHT MODE
     announcementScreen.classList.remove( "show" ); scanArrow.classList.remove( "announcementHidden" ); 
     announcementActive = false; statusBox.textContent = recordingActive ? "🔴 Recording" : "Ready for next visitor"; 
     console.log( "GENERAL ANNOUNCEMENT FINISHED" ); }
-  function waitForAudioEnd( audioElement ){ 
-    return new Promise(resolve => { 
-      const finished = () => { audioElement.removeEventListener( "ended", finished ); resolve(); }; 
-      audioElement.addEventListener( "ended", finished ); }); }
+  function waitForAudioEnd( audioElement ){
+
+    /* Also resolves on error / pause / timeout, so a missing or
+       blocked audio file can never freeze the announcement. */
+
+    return new Promise(resolve => {
+
+      const events = [ "ended", "error", "pause" ];
+
+      let timer = null;
+
+      const finished = () => {
+
+        clearTimeout( timer );
+
+        events.forEach( name => audioElement.removeEventListener( name, finished ) );
+
+        resolve();
+
+      };
+
+      events.forEach( name => audioElement.addEventListener( name, finished ) );
+
+      timer = setTimeout( finished, 120000 );
+
+    });
+
+  }
 /* ============================================================ 
 ANNOUNCEMENT SCHEDULER
 ============================================================ */ 
   function announcementScheduler(){ 
     /* Don't even process announcements during night mode. */ 
-    if(!currentDayMode){ return; } if(announcementActive){ return; } 
+    if(!currentDayMode){ return; } if(announcementActive || qrAnnouncementActive){ return; } 
     const now = new Date(); const hours = String( now.getHours() ).padStart(2,"0");
     const minutes = String( now.getMinutes() ).padStart(2,"0");
     const currentTime = hours + ":" + minutes; if( 
@@ -2106,6 +2643,202 @@ ANNOUNCEMENT SCHEDULER
       const announcementKey = formatDate(now) + "_" + currentTime;
       if( announcementKey !== lastAnnouncementKey ){ lastAnnouncementKey = announcementKey; playGeneralAnnouncement(); } } } 
   setInterval( announcementScheduler, 1000 ); 
+
+
+  /* ============================================================
+  QR ANNOUNCEMENT
+  ============================================================ */
+
+  function delay( ms ){
+
+    return new Promise( resolve => setTimeout( resolve, ms ) );
+
+  }
+
+
+  /* Plays an audio file and resolves with why it finished:
+     "ended", "pause", "error", "play-failed" or "timeout". */
+
+  function playAudioToEnd( audioElement, maxMs = 120000 ){
+
+    return new Promise( resolve => {
+
+      const events = [ "ended", "error", "pause" ];
+
+      let finishedAlready = false;
+
+      let timer = null;
+
+      const finish = reason => {
+
+        if( finishedAlready ){ return; }
+
+        finishedAlready = true;
+
+        clearTimeout( timer );
+
+        events.forEach( name => audioElement.removeEventListener( name, onEvent ) );
+
+        resolve( reason );
+
+      };
+
+      const onEvent = event => finish( event.type );
+
+      events.forEach( name => audioElement.addEventListener( name, onEvent ) );
+
+      timer = setTimeout( () => finish( "timeout" ), maxMs );
+
+      audioElement.currentTime = 0;
+
+      audioElement.play().catch( error => {
+
+        console.error( "QR audio playback failed:", error );
+
+        finish( "play-failed" );
+
+      } );
+
+    } );
+
+  }
+
+
+  async function playQrAnnouncement(){
+
+    if( !currentDayMode || qrAnnouncementActive || announcementActive ){ return; }
+
+    qrAnnouncementActive = true;
+
+    console.log( "QR ANNOUNCEMENT STARTED" );
+
+    /* Stop the normal welcome function (human detection is paused
+       automatically while qrAnnouncementActive is true). */
+
+    try{ audio.pause(); audio.currentTime = 0; }
+    catch( error ){ console.error( error ); }
+
+    welcomeScreen.classList.remove( "show" );
+
+    showingWelcome = false;
+
+    triggered = false;
+
+    scanArrow.classList.add( "announcementHidden" );
+
+    qrAnnouncementScreen.classList.add( "show" );
+
+    statusBox.textContent = "📱 Imbas QR";
+
+    const result = await playAudioToEnd( scanQrAudio );
+
+    /* scanqr.mp3 missing or blocked: keep the QR visible for a fixed time. */
+
+    if( result === "play-failed" || result === "error" ){ await delay( QR_FALLBACK_MS ); }
+
+    /* Night mode already cleaned everything up. */
+
+    if( !currentDayMode ){ qrAnnouncementActive = false; return; }
+
+    /* Back to normal function. */
+
+    qrAnnouncementScreen.classList.remove( "show" );
+
+    scanArrow.classList.remove( "announcementHidden" );
+
+    qrAnnouncementActive = false;
+
+    statusBox.textContent = recordingActive ? "🔴 Recording" : "Ready for next visitor";
+
+    console.log( "QR ANNOUNCEMENT FINISHED" );
+
+  }
+
+
+  function qrAnnouncementScheduler(){
+
+    if( !currentDayMode || qrAnnouncementActive || announcementActive ){ return; }
+
+    const now = new Date();
+
+    const currentTime = pad( now.getHours() ) + ":" + pad( now.getMinutes() );
+
+    if( !QR_ANNOUNCEMENT_TIMES.includes( currentTime ) ){ return; }
+
+    const key = formatDate( now ) + "_" + currentTime;
+
+    if( key === lastQrAnnouncementKey ){ return; }
+
+    lastQrAnnouncementKey = key;
+
+    playQrAnnouncement();
+
+  }
+
+  setInterval( qrAnnouncementScheduler, 1000 );
+
+
+  /* ============================================================
+  KEEP SCREEN AWAKE
+  ============================================================ */
+
+  /* Screen Wake Lock keeps the display on (black screen at night),
+     so nobody has to switch it on in the morning. The browser can
+     drop the lock (tab hidden, reload), so it is re-requested here. */
+
+  async function requestWakeLock(){
+
+    if( !( "wakeLock" in navigator ) ){
+
+      console.warn( "Screen Wake Lock is not supported on this browser." );
+
+      return;
+
+    }
+
+    if( wakeLock && !wakeLock.released ){ return; }
+
+    try{
+
+      wakeLock = await navigator.wakeLock.request( "screen" );
+
+      wakeLock.addEventListener( "release", () => console.log( "Screen wake lock released." ) );
+
+      console.log( "Screen wake lock active." );
+
+    }catch( error ){
+
+      console.warn( "Screen wake lock failed:", error );
+
+    }
+
+  }
+
+
+  /* Every 30 minutes: re-acquire the lock and, at night, show a dim
+     clock for 10 seconds, then return to the black empty screen. */
+
+  function keepScreenAwake(){
+
+    requestWakeLock();
+
+    if( currentDayMode ){ return; }
+
+    nightPulse.textContent = new Date().toLocaleTimeString( "en-GB", { hour: "2-digit", minute: "2-digit" } );
+
+    nightPulse.classList.add( "on" );
+
+    setTimeout( () => nightPulse.classList.remove( "on" ), NIGHT_PULSE_MS );
+
+  }
+
+  document.addEventListener( "visibilitychange", () => {
+
+    if( document.visibilityState === "visible" ){ requestWakeLock(); }
+
+  } );
+
+  setInterval( keepScreenAwake, KEEP_AWAKE_INTERVAL_MS );
   /* ============================================================
    DARAH AUDIO SCHEDULER
    Sunday – Wednesday
@@ -2722,9 +3455,21 @@ async function detectLoop(){
   }
 
 
+  /*
+     Human detection is paused during QR announcements
+     and outside welcome hours (16:30 - 07:40).
+  */
+
+  const detectionAllowed = isDetectionAllowed();
+
+  if(!detectionAllowed){
+    triggered = false;
+  }
+
   if(
     detector &&
-    video.readyState >= 2
+    video.readyState >= 2 &&
+    detectionAllowed
   ){
 
     try{
@@ -2851,14 +3596,26 @@ async function detectLoop(){
 ============================================================ */
 
 function isWelcomeAllowed(){
+
   const now = new Date();
+
   const currentMinutes =
     now.getHours() * 60 +
     now.getMinutes();
-  const welcomeEndMinutes =
-    16 * 60 + 30; // 4:30 PM
-  return currentMinutes <
-    welcomeEndMinutes;
+
+  /* Welcome only between 07:40 and 16:30. */
+
+  return (
+    currentMinutes >= WELCOME_START_MINUTES &&
+    currentMinutes < WELCOME_END_MINUTES
+  );
+
+}
+
+function isDetectionAllowed(){
+
+  return !qrAnnouncementActive && isWelcomeAllowed();
+
 }
 /* ============================================================
    WELCOME SCREEN
@@ -2915,6 +3672,9 @@ async function playWelcome(){
    START EVERYTHING
 ============================================================ */
 async function start(){
+
+  /* Keep the display on (also overnight). */
+  requestWakeLock();
   /*
      Determine the correct mode immediately.
      This is important.
