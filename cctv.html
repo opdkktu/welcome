@@ -1,18 +1,16 @@
 <!DOCTYPE html>
-
 <html lang="en">
 
 <head>
 
 <meta charset="UTF-8">
-
-<meta
-  name="viewport"
-  content="width=device-width,initial-scale=1.0"
->
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
 
 <title>PRIMA CCTV</title>
 
+<!-- Free peer-to-peer video: PeerJS cloud (signalling) + Google STUN -->
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 
 <style>
 
@@ -21,270 +19,242 @@
 ============================================================ */
 
 *{
-
   margin:0;
-
   padding:0;
-
   box-sizing:border-box;
-
 }
-
 
 html,
 body{
-
   width:100%;
-
   height:100%;
-
   overflow:hidden;
-
   background:#000;
-
-  font-family:
-    Arial,
-    sans-serif;
-
+  font-family:Arial,sans-serif;
 }
-
 
 /* ============================================================
    VIDEO
 ============================================================ */
 
 #remoteVideo{
-
   position:fixed;
-
   inset:0;
-
   width:100%;
-
   height:100%;
-
   object-fit:contain;
-
   background:#000;
-
 }
-
 
 /* ============================================================
    STATUS
 ============================================================ */
 
 #status{
-
   position:fixed;
-
   top:20px;
-
   left:20px;
-
   z-index:100;
-
-  padding:
-    10px
-    16px;
-
+  max-width:calc(100% - 140px);
+  padding:10px 16px;
   border-radius:8px;
-
   color:#fff;
-
-  background:
-    rgba(0,0,0,.65);
-
+  background:rgba(0,0,0,.65);
   font-size:14px;
-
   font-weight:600;
-
-  backdrop-filter:
-    blur(8px);
-
+  backdrop-filter:blur(8px);
 }
-
 
 /* ============================================================
    LIVE INDICATOR
 ============================================================ */
 
 #liveIndicator{
-
   position:fixed;
-
   top:20px;
-
   right:20px;
-
   z-index:100;
-
   display:none;
-
   align-items:center;
-
   gap:8px;
-
-  padding:
-    8px
-    14px;
-
+  padding:8px 14px;
   border-radius:20px;
-
   color:#fff;
-
-  background:
-    rgba(0,0,0,.65);
-
+  background:rgba(0,0,0,.65);
   font-size:13px;
-
   font-weight:bold;
-
 }
-
 
 #liveDot{
-
   width:10px;
-
   height:10px;
-
   border-radius:50%;
-
   background:#ff2020;
-
-  box-shadow:
-    0 0 10px
-    rgba(255,0,0,.8);
-
+  box-shadow:0 0 10px rgba(255,0,0,.8);
+  animation:livePulse 1.4s ease-in-out infinite;
 }
 
+@keyframes livePulse{
+  0%,100%{ opacity:1; }
+  50%{ opacity:.35; }
+}
 
 /* ============================================================
    OFFLINE MESSAGE
 ============================================================ */
 
 #offline{
-
   position:fixed;
-
   inset:0;
-
   z-index:50;
-
   display:flex;
-
   justify-content:center;
-
   align-items:center;
-
   flex-direction:column;
-
   gap:12px;
-
+  padding:24px;
   color:#aaa;
-
   background:#000;
-
   text-align:center;
-
 }
-
 
 #offlineTitle{
-
   color:#fff;
-
   font-size:24px;
-
   font-weight:600;
-
 }
-
 
 #offlineText{
-
   color:#777;
-
   font-size:14px;
-
 }
 
+#offline.hidden{
+  display:none;
+}
 
 /* ============================================================
-   HIDDEN WHEN LIVE
+   LOGIN
 ============================================================ */
 
-#offline.hidden{
+#login{
+  position:fixed;
+  inset:0;
+  z-index:60;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+  gap:14px;
+  padding:24px;
+  color:#fff;
+  background:#000;
+  text-align:center;
+}
 
+#login.hidden{
   display:none;
+}
 
+#loginTitle{
+  font-size:24px;
+  font-weight:600;
+}
+
+#loginHint{
+  color:#777;
+  font-size:14px;
+}
+
+#passInput{
+  width:min(320px,90vw);
+  min-height:48px;
+  padding:0 16px;
+  border:1px solid #333;
+  border-radius:10px;
+  color:#fff;
+  background:#111;
+  font-size:18px;
+  letter-spacing:2px;
+  text-align:center;
+}
+
+#passInput:focus{
+  outline:2px solid #4da3ff;
+  outline-offset:2px;
+}
+
+#loginButton{
+  width:min(320px,90vw);
+  min-height:48px;
+  border:0;
+  border-radius:10px;
+  color:#fff;
+  background:#2f7df6;
+  font-size:16px;
+  font-weight:600;
+  cursor:pointer;
+}
+
+#loginButton:hover{
+  background:#4a90f7;
+}
+
+#loginButton:focus-visible{
+  outline:2px solid #fff;
+  outline-offset:2px;
+}
+
+#loginError{
+  min-height:20px;
+  color:#ff6b6b;
+  font-size:14px;
 }
 
 </style>
 
 </head>
 
-
 <body>
-
-
-<!-- =========================================================
-     REMOTE CAMERA
-========================================================= -->
 
 <video
   id="remoteVideo"
   autoplay
   playsinline
   muted
+  title="Double-click for full screen"
 ></video>
 
-
-<!-- =========================================================
-     STATUS
-========================================================= -->
-
-<div id="status">
-
+<div id="status" role="status" aria-live="polite">
   Connecting...
-
 </div>
-
-
-<!-- =========================================================
-     LIVE INDICATOR
-========================================================= -->
 
 <div id="liveIndicator">
-
   <span id="liveDot"></span>
-
   LIVE CCTV
-
 </div>
 
-
-<!-- =========================================================
-     OFFLINE
-========================================================= -->
-
-<div id="offline">
-
-  <div id="offlineTitle">
-
-    PRIMA CCTV
-
-  </div>
-
-  <div id="offlineText">
-
-    Connecting to camera...
-
-  </div>
-
+<div id="offline" class="hidden">
+  <div id="offlineTitle">PRIMA CCTV</div>
+  <div id="offlineText">Connecting to camera...</div>
 </div>
 
+<form id="login" class="hidden" autocomplete="off">
+  <div id="loginTitle">PRIMA CCTV</div>
+  <div id="loginHint">Enter the viewer passphrase</div>
+  <label for="passInput" style="position:absolute;left:-9999px">Passphrase</label>
+  <input
+    id="passInput"
+    type="password"
+    autocomplete="off"
+    autocapitalize="off"
+    spellcheck="false"
+    maxlength="100"
+    required
+  >
+  <button id="loginButton" type="submit">Connect</button>
+  <div id="loginError" role="alert"></div>
+</form>
 
 <script>
 
@@ -292,571 +262,320 @@ body{
    SETTINGS
 ============================================================ */
 
+/* Must be identical to CCTV_PEER_ID in index.html. */
+const CCTV_PEER_ID = "kkah-welcome-cam-gz345w9dgy";
 
 /*
-   IMPORTANT:
-
-   Replace this with the SAME Cloudflare Worker URL
-   used inside index.html.
-
+   Optional free TURN relay (only used when a direct connection
+   is blocked by the network). See the note in index.html.
    Example:
-
-   wss://prima-cctv.xxxxx.workers.dev/ws
+   https://YOURAPP.metered.live/api/v1/turn/credentials?apiKey=YOURKEY
 */
+const CCTV_TURN_CREDENTIALS_URL = "";
 
-const CCTV_WS_URL =
-  "wss://YOUR-CCTV-WORKER.workers.dev/ws";
-
+const RETRY_MS = 5000;
+const BUSY_RETRY_MS = 15000;
+const STREAM_TIMEOUT_MS = 25000;
+const STORAGE_KEY = "prima-cctv-pass";
 
 /* ============================================================
    ELEMENTS
 ============================================================ */
 
-const video =
-  document.getElementById(
-    "remoteVideo"
-  );
-
-
-const statusBox =
-  document.getElementById(
-    "status"
-  );
-
-
-const liveIndicator =
-  document.getElementById(
-    "liveIndicator"
-  );
-
-
-const offline =
-  document.getElementById(
-    "offline"
-  );
-
-
-const offlineText =
-  document.getElementById(
-    "offlineText"
-  );
-
+const video = document.getElementById("remoteVideo");
+const statusBox = document.getElementById("status");
+const liveIndicator = document.getElementById("liveIndicator");
+const offline = document.getElementById("offline");
+const offlineText = document.getElementById("offlineText");
+const login = document.getElementById("login");
+const loginError = document.getElementById("loginError");
+const passInput = document.getElementById("passInput");
 
 /* ============================================================
-   WEBRTC VARIABLES
+   STATE
 ============================================================ */
 
-let socket =
-  null;
+let peer = null;
+let conn = null;
+let call = null;
+let retryTimer = null;
+let streamTimer = null;
+let passphrase = "";
+let live = false;
 
-let peer =
-  null;
-
+/* Increases on every connect(); callbacks of older sessions are ignored. */
+let session = 0;
 
 /* ============================================================
-   CONNECT
+   UI HELPERS
 ============================================================ */
 
-function connect(){
-
-  /*
-     Clean up previous connection.
-  */
-
-  if(socket){
-
-    try{
-
-      socket.close();
-
-    }catch(error){
-
-      console.error(
-        error
-      );
-
-    }
-
-    socket =
-      null;
-
-  }
-
-
-  if(peer){
-
-    try{
-
-      peer.close();
-
-    }catch(error){
-
-      console.error(
-        error
-      );
-
-    }
-
-    peer =
-      null;
-
-  }
-
-
-  statusBox.textContent =
-    "Connecting to PRIMA CCTV...";
-
-
-  offlineText.textContent =
-    "Connecting to camera...";
-
-
-  offline.classList.remove(
-    "hidden"
-  );
-
-
-  liveIndicator.style.display =
-    "none";
-
-
-  /*
-     Connect to Cloudflare signaling.
-  */
-
-  socket =
-    new WebSocket(
-      CCTV_WS_URL
-    );
-
-
-  /* ========================================================
-     SOCKET OPEN
-  ======================================================== */
-
-  socket.onopen =
-    () => {
-
-      console.log(
-        "CCTV signaling connected."
-      );
-
-
-      statusBox.textContent =
-        "Connected • Waiting for camera";
-
-
-      offlineText.textContent =
-        "Waiting for PRIMA camera...";
-
-
-      /*
-         Tell Chromebook:
-
-         "I am a viewer."
-      */
-
-      socket.send(
-
-        JSON.stringify({
-
-          type:
-            "viewer-ready"
-
-        })
-
-      );
-
-    };
-
-
-  /* ========================================================
-     SOCKET MESSAGE
-  ======================================================== */
-
-  socket.onmessage =
-    async event => {
-
-      try{
-
-        const message =
-          JSON.parse(
-            event.data
-          );
-
-
-        /*
-           Chromebook sent WebRTC offer.
-        */
-
-        if(
-          message.type ===
-          "offer"
-        ){
-
-          console.log(
-            "CCTV offer received."
-          );
-
-
-          await handleOffer(
-            message.offer
-          );
-
-        }
-
-
-        /*
-           ICE candidate from Chromebook.
-        */
-
-        else if(
-          message.type ===
-          "candidate"
-        ){
-
-          if(
-            peer &&
-            message.candidate
-          ){
-
-            try{
-
-              await peer.addIceCandidate(
-
-                new RTCIceCandidate(
-                  message.candidate
-                )
-
-              );
-
-            }catch(error){
-
-              console.error(
-                "ICE candidate error:",
-                error
-              );
-
-            }
-
-          }
-
-        }
-
-      }catch(error){
-
-        console.error(
-          "CCTV message error:",
-          error
-        );
-
-      }
-
-    };
-
-
-  /* ========================================================
-     SOCKET ERROR
-  ======================================================== */
-
-  socket.onerror =
-    error => {
-
-      console.error(
-        "CCTV WebSocket error:",
-        error
-      );
-
-
-      statusBox.textContent =
-        "CCTV connection error";
-
-    };
-
-
-  /* ========================================================
-     SOCKET CLOSED
-  ======================================================== */
-
-  socket.onclose =
-    () => {
-
-      console.log(
-        "CCTV signaling disconnected."
-      );
-
-
-      statusBox.textContent =
-        "CCTV disconnected";
-
-
-      offlineText.textContent =
-        "Camera connection lost";
-
-
-      offline.classList.remove(
-        "hidden"
-      );
-
-
-      liveIndicator.style.display =
-        "none";
-
-
-      /*
-         Automatically reconnect.
-
-         Useful if Chromebook changes
-         from night → day mode.
-      */
-
-      setTimeout(
-        connect,
-        3000
-      );
-
-    };
-
+function setStatus(text){
+  statusBox.textContent = text;
 }
 
+function showOffline(text){
+  live = false;
+  offlineText.textContent = text;
+  offline.classList.remove("hidden");
+  liveIndicator.style.display = "none";
+}
+
+function showLive(){
+  live = true;
+  clearTimeout(streamTimer);
+  offline.classList.add("hidden");
+  liveIndicator.style.display = "flex";
+  setStatus("🔴 LIVE CCTV");
+}
+
+function showLogin(message){
+  teardown();
+  offline.classList.add("hidden");
+  login.classList.remove("hidden");
+  loginError.textContent = message || "";
+  passInput.value = "";
+  passInput.focus();
+  setStatus("Passphrase required");
+}
+
+function hideLogin(){
+  login.classList.add("hidden");
+}
+
+function readSaved(){
+  try{ return sessionStorage.getItem(STORAGE_KEY) || ""; }
+  catch(error){ return ""; }
+}
+
+function writeSaved(value){
+  try{
+    if(value){ sessionStorage.setItem(STORAGE_KEY, value); }
+    else{ sessionStorage.removeItem(STORAGE_KEY); }
+  }catch(error){}
+}
 
 /* ============================================================
-   HANDLE WEBRTC OFFER
+   ICE SERVERS (STUN + optional free TURN)
 ============================================================ */
 
-async function handleOffer(
-  offer
-){
+async function getIceServers(){
 
-  /*
-     Close previous connection.
-  */
+  const servers = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" }
+  ];
 
-  if(peer){
-
+  if(CCTV_TURN_CREDENTIALS_URL){
     try{
-
-      peer.close();
-
+      const response = await fetch(CCTV_TURN_CREDENTIALS_URL);
+      const data = await response.json();
+      const extra = Array.isArray(data) ? data : data.iceServers;
+      if(Array.isArray(extra)){ servers.push(...extra); }
     }catch(error){
-
-      console.error(
-        error
-      );
-
+      console.warn("TURN credentials unavailable, using STUN only:", error);
     }
-
   }
 
+  return servers;
+}
 
-  /*
-     Create WebRTC peer.
-  */
+/* ============================================================
+   CONNECTION
+============================================================ */
 
-  peer =
-    new RTCPeerConnection({
+function teardown(){
 
-      iceServers:[
-        {
-          urls:
-            "stun:stun.l.google.com:19302"
-        }
-      ]
+  clearTimeout(retryTimer);
+  clearTimeout(streamTimer);
 
+  try{ if(call){ call.close(); } }catch(error){}
+  try{ if(conn){ conn.close(); } }catch(error){}
+  try{ if(peer){ peer.destroy(); } }catch(error){}
+
+  call = null;
+  conn = null;
+  peer = null;
+  live = false;
+
+  video.srcObject = null;
+  liveIndicator.style.display = "none";
+}
+
+function retry(message, delayMs){
+
+  showOffline(message + " • retrying...");
+  setStatus("Reconnecting...");
+
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(connect, delayMs || RETRY_MS);
+}
+
+async function connect(){
+
+  const mySession = ++session;
+  const stale = () => mySession !== session;
+
+  teardown();
+
+  if(typeof Peer === "undefined"){
+    retry("Cannot load the PeerJS library (network blocked?)", BUSY_RETRY_MS);
+    return;
+  }
+
+  showOffline("Connecting to camera...");
+  setStatus("Connecting...");
+
+  const iceServers = await getIceServers();
+
+  if(stale()){ return; }
+
+  peer = new Peer({ debug:1, config:{ iceServers } });
+
+  /* ---------- signalling server reached ---------- */
+
+  peer.on("open", () => {
+
+    if(stale()){ return; }
+
+    conn = peer.connect(CCTV_PEER_ID, { reliable:true });
+
+    conn.on("open", () => {
+      if(stale()){ return; }
+      conn.send({ type:"auth", pass:passphrase });
     });
 
+    conn.on("data", message => {
 
-  /* ========================================================
-     REMOTE VIDEO
-  ======================================================== */
+      if(stale() || !message){ return; }
 
-  peer.ontrack =
-    event => {
+      if(message.type === "auth-ok"){
 
-      console.log(
-        "CCTV video track received."
-      );
+        setStatus("Waiting for video...");
 
+        streamTimer = setTimeout(() => {
+          if(!stale() && !live){ retry("No video received"); }
+        }, STREAM_TIMEOUT_MS);
 
-      /*
-         Display remote camera.
-      */
+      }else if(message.type === "auth-failed"){
 
-      if(
-        event.streams &&
-        event.streams[0]
-      ){
+        ++session;
+        writeSaved("");
+        showLogin("Wrong passphrase. Please try again.");
 
-        video.srcObject =
-          event.streams[0];
+      }else if(message.type === "busy"){
 
-      }
+        retry("Too many viewers right now", BUSY_RETRY_MS);
 
+      }else if(message.type === "offline"){
 
-      video.play()
-        .catch(
-          error => {
-
-            console.warn(
-              "Video autoplay issue:",
-              error
-            );
-
-          }
-        );
-
-
-      /*
-         Update interface.
-      */
-
-      statusBox.textContent =
-        "🔴 LIVE CCTV";
-
-
-      offline.classList.add(
-        "hidden"
-      );
-
-
-      liveIndicator.style.display =
-        "flex";
-
-    };
-
-
-  /* ========================================================
-     ICE
-  ======================================================== */
-
-  peer.onicecandidate =
-    event => {
-
-      if(
-        event.candidate &&
-        socket &&
-        socket.readyState ===
-          WebSocket.OPEN
-      ){
-
-        socket.send(
-
-          JSON.stringify({
-
-            type:
-              "candidate",
-
-            candidate:
-              event.candidate
-
-          })
-
-        );
+        retry("Camera is not ready");
 
       }
+    });
 
-    };
+    conn.on("close", () => {
+      if(!stale()){ retry("Camera connection closed"); }
+    });
 
+    conn.on("error", error => {
+      console.warn("Data connection error:", error);
+    });
+  });
 
-  /* ========================================================
-     CONNECTION STATE
-  ======================================================== */
+  /* ---------- camera calls us with the video ---------- */
 
-  peer.onconnectionstatechange =
-    () => {
+  peer.on("call", incoming => {
 
-      console.log(
-        "CCTV WebRTC state:",
-        peer.connectionState
-      );
+    if(stale()){ return; }
 
+    call = incoming;
+    incoming.answer();
 
-      if(
-        peer.connectionState ===
-        "connected"
-      ){
+    incoming.on("stream", stream => {
 
-        statusBox.textContent =
-          "🔴 LIVE CCTV";
+      if(stale()){ return; }
 
-      }
+      video.srcObject = stream;
+      video.play().catch(error => console.warn("Autoplay issue:", error));
+      showLive();
+    });
 
+    incoming.on("close", () => {
+      if(!stale()){ retry("Camera stream ended"); }
+    });
 
-      if(
-        peer.connectionState ===
-          "failed" ||
-        peer.connectionState ===
-          "disconnected" ||
-        peer.connectionState ===
-          "closed"
-      ){
+    incoming.on("error", () => {
+      if(!stale()){ retry("Camera stream error"); }
+    });
+  });
 
-        statusBox.textContent =
-          "CCTV disconnected";
+  /* ---------- errors ---------- */
 
+  peer.on("error", error => {
 
-        liveIndicator.style.display =
-          "none";
+    if(stale()){ return; }
 
+    console.warn("Peer error:", error.type);
 
-        offline.classList.remove(
-          "hidden"
-        );
+    if(error.type === "peer-unavailable"){
+      retry("Camera is offline (it runs in day mode only)");
+    }else{
+      retry("Connection problem (" + error.type + ")");
+    }
+  });
 
+  /* Signalling lost: an active video call keeps running without it. */
 
-        offlineText.textContent =
-          "Camera connection lost";
-
-      }
-
-    };
-
-
-  /* ========================================================
-     REMOTE DESCRIPTION
-  ======================================================== */
-
-  await peer.setRemoteDescription(
-
-    new RTCSessionDescription(
-      offer
-    )
-  );
-
-  /* ========================================================
-     CREATE ANSWER
-  ======================================================== */
-
-  const answer =
-    await peer.createAnswer();
-  await peer.setLocalDescription(
-    answer
-  );
-
-  /* ========================================================
-     SEND ANSWER
-  ======================================================== */
-
-  if(
-    socket &&
-    socket.readyState ===
-      WebSocket.OPEN
-  ){
-    socket.send(
-      JSON.stringify({
-        type:
-          "answer",
-        answer:
-          peer.localDescription
-      })
-    );
-  }
+  peer.on("disconnected", () => {
+    if(!stale() && !live){ retry("Signalling server disconnected"); }
+  });
 }
+
+/* ============================================================
+   LOGIN FORM
+============================================================ */
+
+login.addEventListener("submit", event => {
+
+  event.preventDefault();
+
+  passphrase = passInput.value.trim();
+
+  if(!passphrase){ return; }
+
+  writeSaved(passphrase);
+  hideLogin();
+  connect();
+});
+
+/* ============================================================
+   FULL SCREEN (double-click / double-tap)
+============================================================ */
+
+video.addEventListener("dblclick", () => {
+
+  if(document.fullscreenElement){
+    document.exitFullscreen();
+  }else if(document.documentElement.requestFullscreen){
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+});
+
 /* ============================================================
    START
 ============================================================ */
-connect();
+
+passphrase = readSaved();
+
+if(passphrase){
+  connect();
+}else{
+  showLogin("");
+}
+
 </script>
+
 </body>
 
 </html>
